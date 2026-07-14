@@ -1,0 +1,116 @@
+.admin-login-page {
+  min-height: 100svh;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(20, 184, 166, 0.12), transparent 30%),
+    #071829;
+}
+
+.admin-login-card {
+  width: min(100%, 440px);
+  padding: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 28px;
+  color: white;
+  background: rgba(15, 36, 59, 0.9);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.38);
+}
+
+.admin-back-button {
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.58);
+  background: transparent;
+  font-size: 13px;
+}
+
+.admin-login-icon {
+  width: 58px;
+  height: 58px;
+  margin-top: 30px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #062634;
+  background: #5eead4;
+  font-size: 25px;
+}
+
+.admin-eyebrow {
+  margin-top: 26px;
+}
+
+.admin-login-card h1 {
+  margin: 8px 0;
+  font-size: 32px;
+  letter-spacing: -0.04em;
+}
+
+.admin-login-card > p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.55;
+}
+
+.admin-form {
+  display: grid;
+  gap: 17px;
+  margin-top: 28px;
+}
+
+.admin-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-form label > span {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-input {
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-input svg {
+  color: #5eead4;
+}
+
+.admin-input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: white;
+  background: transparent;
+}
+
+.admin-input input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.admin-form button {
+  min-height: 52px;
+  border: 0;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #062634;
+  background: #5eead4;
+  font-weight: 850;
+}
