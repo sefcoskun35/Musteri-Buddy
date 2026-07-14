@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import {
   FiAlertCircle,
+  FiAward,
   FiCheckCircle,
   FiFileText,
+  FiGrid,
+  FiHelpCircle,
   FiLogOut,
   FiUploadCloud,
 } from 'react-icons/fi'
@@ -23,6 +26,7 @@ const requiredColumns = [
 
 function AdminDashboardPage() {
   const navigate = useNavigate()
+
   const [rows, setRows] = useState([])
   const [fileName, setFileName] = useState('')
   const [fileError, setFileError] = useState('')
@@ -43,6 +47,7 @@ function AdminDashboardPage() {
 
     rows.forEach((row, index) => {
       const errors = []
+
       const normalizedQuestion = String(row.soru || '')
         .trim()
         .toLocaleLowerCase('tr-TR')
@@ -57,12 +62,22 @@ function AdminDashboardPage() {
         .trim()
         .toUpperCase()
 
-      if (correctOption && !['A', 'B', 'C', 'D'].includes(correctOption)) {
-        errors.push('dogru_secenek yalnızca A, B, C veya D olabilir')
+      if (
+        correctOption &&
+        !['A', 'B', 'C', 'D'].includes(correctOption)
+      ) {
+        errors.push(
+          'dogru_secenek yalnızca A, B, C veya D olabilir',
+        )
       }
 
-      if (normalizedQuestion && seenQuestions.has(normalizedQuestion)) {
-        errors.push('Aynı soru dosyada birden fazla kez bulunuyor')
+      if (
+        normalizedQuestion &&
+        seenQuestions.has(normalizedQuestion)
+      ) {
+        errors.push(
+          'Aynı soru dosyada birden fazla kez bulunuyor',
+        )
       }
 
       if (normalizedQuestion) {
@@ -92,15 +107,21 @@ function AdminDashboardPage() {
     return validation.validRows.reduce((summary, row) => {
       const category = String(row.kategori || '').trim()
 
-      if (!category) return summary
+      if (!category) {
+        return summary
+      }
 
       summary[category] = (summary[category] || 0) + 1
+
       return summary
     }, {})
   }, [validation.validRows])
 
   const handleDatabaseUpload = async () => {
-    if (!validation.validRows.length || validation.invalidRows.length > 0) {
+    if (
+      !validation.validRows.length ||
+      validation.invalidRows.length > 0
+    ) {
       return
     }
 
@@ -108,11 +129,16 @@ function AdminDashboardPage() {
       setIsUploading(true)
       setUploadMessage('')
 
-      const count = await uploadQuestions(validation.validRows)
+      const count = await uploadQuestions(
+        validation.validRows,
+      )
 
-      setUploadMessage(`${count} soru başarıyla veritabanına yüklendi.`)
+      setUploadMessage(
+        `${count} soru başarıyla veritabanına yüklendi.`,
+      )
     } catch (error) {
-      console.error(error)
+      console.error('Sorular yüklenemedi:', error)
+
       setUploadMessage(
         'Sorular yüklenemedi. Firestore bağlantısını ve kurallarını kontrol edin.',
       )
@@ -126,23 +152,36 @@ function AdminDashboardPage() {
 
     setRows([])
     setFileError('')
+    setUploadMessage('')
     setFileName(file?.name || '')
 
-    if (!file) return
+    if (!file) {
+      return
+    }
 
     try {
       const buffer = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array' })
+
+      const workbook = XLSX.read(buffer, {
+        type: 'array',
+      })
+
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
 
-      const rawRows = XLSX.utils.sheet_to_json(worksheet, {
-        defval: '',
-        raw: false,
-      })
+      const rawRows = XLSX.utils.sheet_to_json(
+        worksheet,
+        {
+          defval: '',
+          raw: false,
+        },
+      )
 
       if (!rawRows.length) {
-        setFileError('Excel dosyasında okunabilir veri bulunamadı.')
+        setFileError(
+          'Excel dosyasında okunabilir veri bulunamadı.',
+        )
+
         return
       }
 
@@ -160,13 +199,18 @@ function AdminDashboardPage() {
           .replace(/^_+|_+$/g, '')
 
       const parsedRows = rawRows.map((row) =>
-        Object.entries(row).reduce((normalizedRow, [key, value]) => {
-          normalizedRow[normalizeHeader(key)] = value
-          return normalizedRow
-        }, {}),
+        Object.entries(row).reduce(
+          (normalizedRow, [key, value]) => {
+            normalizedRow[normalizeHeader(key)] = value
+
+            return normalizedRow
+          },
+          {},
+        ),
       )
 
       const columns = Object.keys(parsedRows[0])
+
       const missingColumns = requiredColumns.filter(
         (column) => !columns.includes(column),
       )
@@ -175,13 +219,29 @@ function AdminDashboardPage() {
         setFileError(
           `Eksik sütunlar: ${missingColumns.join(', ')}`,
         )
+
         return
       }
 
       setRows(parsedRows)
-    } catch {
-      setFileError('Excel dosyası okunamadı. Dosya biçimini kontrol edin.')
+    } catch (error) {
+      console.error('Excel dosyası okunamadı:', error)
+
+      setFileError(
+        'Excel dosyası okunamadı. Dosya biçimini kontrol edin.',
+      )
     }
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('musteriBuddyAdmin')
+    sessionStorage.removeItem(
+      'musteriBuddyAdminEmail',
+    )
+
+    navigate('/yonetici', {
+      replace: true,
+    })
   }
 
   return (
@@ -189,6 +249,7 @@ function AdminDashboardPage() {
       <aside className="admin-sidebar">
         <div>
           <span className="admin-logo-small">MB</span>
+
           <div>
             <strong>Müşteri Buddy</strong>
             <small>Yönetim Paneli</small>
@@ -196,24 +257,51 @@ function AdminDashboardPage() {
         </div>
 
         <nav>
-          <button type="button" className="active">
-            <FiUploadCloud />
-            Soru Yükleme
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/yonetim/dashboard')
+            }
+          >
+            <FiGrid />
+            Dashboard
           </button>
 
           <button
             type="button"
-            onClick={() => navigate('/yonetim/sonuclar')}
+            onClick={() =>
+              navigate('/yonetim/sorular')
+            }
+          >
+            <FiHelpCircle />
+            Soru Yönetimi
+          </button>
+
+          <button
+            type="button"
+            className="active"
+          >
+            <FiUploadCloud />
+            Excel ile Soru Yükle
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/yonetim/sonuclar')
+            }
           >
             <FiFileText />
-            Sonuçlar
+            Sınav Sonuçları
           </button>
 
           <button
             type="button"
-            onClick={() => navigate('/yonetim/siralama')}
+            onClick={() =>
+              navigate('/yonetim/siralama')
+            }
           >
-            <FiCheckCircle />
+            <FiAward />
             Mağaza Sıralaması
           </button>
         </nav>
@@ -221,21 +309,24 @@ function AdminDashboardPage() {
         <button
           type="button"
           className="logout-button"
-          onClick={() => navigate('/')}
+          onClick={handleLogout}
         >
           <FiLogOut />
-          Çıkış
+          Çıkış Yap
         </button>
       </aside>
 
       <section className="admin-content">
         <header className="admin-content-header">
           <div>
-            <span>Soru Yönetimi</span>
+            <span>Soru Bankası</span>
+
             <h1>Excel ile soru yükle</h1>
+
             <p>
-              Dosyayı seçin. Sistem sütunları, boş alanları, doğru cevapları ve
-              tekrar eden soruları kontrol eder.
+              Dosyanızı seçin. Sistem sütunları, boş
+              alanları, doğru cevapları ve tekrar eden
+              soruları otomatik olarak kontrol eder.
             </p>
           </div>
         </header>
@@ -243,8 +334,14 @@ function AdminDashboardPage() {
         <section className="upload-panel">
           <label className="upload-area">
             <FiUploadCloud />
+
             <strong>Excel dosyası seç</strong>
-            <span>.xlsx veya .xls dosyası yükleyebilirsiniz.</span>
+
+            <span>
+              .xlsx veya .xls dosyası
+              yükleyebilirsiniz.
+            </span>
+
             <input
               type="file"
               accept=".xlsx,.xls"
@@ -277,17 +374,29 @@ function AdminDashboardPage() {
 
               <article>
                 <span>Geçerli</span>
-                <strong>{validation.validRows.length}</strong>
+
+                <strong>
+                  {validation.validRows.length}
+                </strong>
               </article>
 
               <article>
                 <span>Hatalı</span>
-                <strong>{validation.invalidRows.length}</strong>
+
+                <strong>
+                  {validation.invalidRows.length}
+                </strong>
               </article>
 
               <article>
                 <span>Kategori</span>
-                <strong>{Object.keys(categorySummary).length}</strong>
+
+                <strong>
+                  {
+                    Object.keys(categorySummary)
+                      .length
+                  }
+                </strong>
               </article>
             </section>
 
@@ -295,19 +404,26 @@ function AdminDashboardPage() {
               <h2>Kategori dağılımı</h2>
 
               <div className="category-summary-list">
-                {Object.entries(categorySummary).map(([category, count]) => (
-                  <div key={category}>
-                    <span>{category}</span>
-                    <strong>{count} soru</strong>
-                  </div>
-                ))}
+                {Object.entries(categorySummary).map(
+                  ([category, count]) => (
+                    <div key={category}>
+                      <span>{category}</span>
+
+                      <strong>
+                        {count} soru
+                      </strong>
+                    </div>
+                  ),
+                )}
               </div>
             </section>
 
             {validation.invalidRows.length === 0 ? (
               <div className="validation-message validation-success">
                 <FiCheckCircle />
-                Tüm satırlar geçerli. Dosya veritabanına yüklenmeye hazır.
+
+                Tüm satırlar geçerli. Dosya
+                veritabanına yüklenmeye hazır.
               </div>
             ) : (
               <section className="error-table-panel">
@@ -325,14 +441,29 @@ function AdminDashboardPage() {
                     </thead>
 
                     <tbody>
-                      {validation.invalidRows.map((row) => (
-                        <tr key={`${row.satirNo}-${row.soru}`}>
-                          <td>{row.satirNo}</td>
-                          <td>{row.kategori || '-'}</td>
-                          <td>{row.soru || '-'}</td>
-                          <td>{row.errors.join(' • ')}</td>
-                        </tr>
-                      ))}
+                      {validation.invalidRows.map(
+                        (row) => (
+                          <tr
+                            key={`${row.satirNo}-${row.soru}`}
+                          >
+                            <td>{row.satirNo}</td>
+
+                            <td>
+                              {row.kategori || '-'}
+                            </td>
+
+                            <td>
+                              {row.soru || '-'}
+                            </td>
+
+                            <td>
+                              {row.errors.join(
+                                ' • ',
+                              )}
+                            </td>
+                          </tr>
+                        ),
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -343,19 +474,39 @@ function AdminDashboardPage() {
               type="button"
               className="database-upload-button"
               disabled={
-                validation.invalidRows.length > 0 ||
-                validation.validRows.length === 0 ||
+                validation.invalidRows.length >
+                  0 ||
+                validation.validRows.length ===
+                  0 ||
                 isUploading
               }
               onClick={handleDatabaseUpload}
             >
               <FiUploadCloud />
-              {isUploading ? 'Yükleniyor...' : 'Veritabanına Yükle'}
+
+              {isUploading
+                ? 'Yükleniyor...'
+                : 'Veritabanına Yükle'}
             </button>
 
             {uploadMessage && (
-              <div className="validation-message validation-success">
-                <FiCheckCircle />
+              <div
+                className={`validation-message ${
+                  uploadMessage.includes(
+                    'başarıyla',
+                  )
+                    ? 'validation-success'
+                    : 'validation-error'
+                }`}
+              >
+                {uploadMessage.includes(
+                  'başarıyla',
+                ) ? (
+                  <FiCheckCircle />
+                ) : (
+                  <FiAlertCircle />
+                )}
+
                 {uploadMessage}
               </div>
             )}
