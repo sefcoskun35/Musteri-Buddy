@@ -13,11 +13,58 @@ const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
 const normalizeText = (value) =>
   String(value ?? '').trim()
 
-const normalizeCategory = (value) =>
-  normalizeText(value).toLocaleLowerCase('tr-TR')
+const normalizeCategory = (value) => {
+  const normalizedValue = normalizeText(value)
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const categoryAliases = {
+    health: 'health',
+    healthy: 'health',
+    healt: 'health',
+
+    'personal care': 'personal care',
+    personalcare: 'personal care',
+
+    'hair care': 'hair care',
+    haircare: 'hair care',
+
+    'general merchandise':
+      'general merchandise',
+    generalmerchandise:
+      'general merchandise',
+  }
+
+  return (
+    categoryAliases[normalizedValue] ||
+    normalizedValue
+  )
+}
+
+const getCanonicalCategoryName = (value) => {
+  const normalizedCategory =
+    normalizeCategory(value)
+
+  const categoryNames = {
+    health: 'Health',
+    'personal care': 'Personal Care',
+    'hair care': 'Hair Care',
+    'general merchandise':
+      'General Merchandise',
+  }
+
+  return (
+    categoryNames[normalizedCategory] ||
+    normalizeText(value)
+  )
+}
 
 const normalizeCorrectAnswer = (value) => {
-  const normalizedValue = normalizeText(value).toUpperCase()
+  const normalizedValue = normalizeText(value)
+    .toUpperCase()
+    .replace(/\s+/g, '')
 
   if (ANSWER_LETTERS.includes(normalizedValue)) {
     return normalizedValue
@@ -31,6 +78,14 @@ const normalizeCorrectAnswer = (value) => {
     numericValue <= 3
   ) {
     return ANSWER_LETTERS[numericValue]
+  }
+
+  if (
+    Number.isInteger(numericValue) &&
+    numericValue >= 1 &&
+    numericValue <= 4
+  ) {
+    return ANSWER_LETTERS[numericValue - 1]
   }
 
   return ''
@@ -83,8 +138,13 @@ export async function uploadQuestions(rows) {
   }
 
   const validRows = rows.filter((row) => {
-    const category = normalizeText(row?.kategori)
-    const question = normalizeText(row?.soru)
+    const category = normalizeText(
+      row?.kategori,
+    )
+
+    const question = normalizeText(
+      row?.soru,
+    )
 
     const options = [
       normalizeText(row?.secenek_a),
@@ -148,9 +208,10 @@ export async function uploadQuestions(rows) {
       ]
 
       batch.set(questionRef, {
-        category: normalizeText(
-          row.kategori,
-        ),
+        category:
+          getCanonicalCategoryName(
+            row.kategori,
+          ),
         question: normalizeText(row.soru),
         options: optionTexts.map(
           (text, index) => ({
@@ -186,7 +247,7 @@ export async function getQuestionsByCategory(
     ),
   )
 
-  const normalizedCategory =
+  const normalizedRequestedCategory =
     normalizeCategory(category)
 
   return snapshot.docs
@@ -215,7 +276,7 @@ export async function getQuestionsByCategory(
       }
     })
     .filter((question) => {
-      const questionCategory =
+      const normalizedQuestionCategory =
         normalizeCategory(
           question.category,
         )
@@ -236,9 +297,13 @@ export async function getQuestionsByCategory(
 
       return (
         question.active !== false &&
-        questionCategory ===
-          normalizedCategory &&
-        normalizeText(question.question) &&
+        normalizedQuestionCategory ===
+          normalizedRequestedCategory &&
+        Boolean(
+          normalizeText(
+            question.question,
+          ),
+        ) &&
         hasValidOptions &&
         hasCorrectOption
       )
