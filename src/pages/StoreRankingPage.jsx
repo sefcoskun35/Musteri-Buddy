@@ -18,6 +18,15 @@ const normalizeText = (value) =>
     .trim()
     .toLocaleLowerCase('tr-TR')
 
+const getStoreCode = (item) =>
+  String(item?.storeCode || '').trim()
+
+const getStoreName = (item) =>
+  String(item?.storeName || '').trim()
+
+const getCategoryName = (item) =>
+  String(item?.categoryName || '').trim()
+
 const getCompletedAtTimestamp = (value) => {
   if (!value) {
     return 0
@@ -31,11 +40,9 @@ const getCompletedAtTimestamp = (value) => {
     return value.seconds * 1000
   }
 
-  const parsedTimestamp = new Date(value).getTime()
+  const timestamp = new Date(value).getTime()
 
-  return Number.isNaN(parsedTimestamp)
-    ? 0
-    : parsedTimestamp
+  return Number.isNaN(timestamp) ? 0 : timestamp
 }
 
 const formatCompletedAt = (value) => {
@@ -53,49 +60,43 @@ const formatCompletedAt = (value) => {
 
 const compareResults = (firstResult, secondResult) => {
   const scoreDifference =
-    Number(secondResult.score || 0) -
-    Number(firstResult.score || 0)
+    Number(secondResult?.score || 0) -
+    Number(firstResult?.score || 0)
 
   if (scoreDifference !== 0) {
     return scoreDifference
   }
 
   const durationDifference =
-    Number(firstResult.duration || 0) -
-    Number(secondResult.duration || 0)
+    Number(firstResult?.duration || 0) -
+    Number(secondResult?.duration || 0)
 
   if (durationDifference !== 0) {
     return durationDifference
   }
 
   return (
-    getCompletedAtTimestamp(firstResult.completedAt) -
-    getCompletedAtTimestamp(secondResult.completedAt)
+    getCompletedAtTimestamp(firstResult?.completedAt) -
+    getCompletedAtTimestamp(secondResult?.completedAt)
   )
 }
 
-const getStoreKey = (item) =>
-  String(item.storeCode || '').trim()
-
-const getCategoryKey = (item) =>
-  String(item.categoryName || '').trim()
-
 const getParticipantKey = (item) => {
-  const userId = String(
-    item.userId ||
-      item.uid ||
-      item.employeeId ||
+  const uniqueId = String(
+    item?.userId ||
+      item?.uid ||
+      item?.employeeId ||
       '',
   ).trim()
 
-  if (userId) {
-    return userId
+  if (uniqueId) {
+    return uniqueId
   }
 
   return [
-    normalizeText(item.fullName),
-    getStoreKey(item),
-    getCategoryKey(item),
+    normalizeText(item?.fullName),
+    getStoreCode(item),
+    getCategoryName(item),
   ].join('__')
 }
 
@@ -110,11 +111,12 @@ const sanitizeFileName = (value) =>
 function StoreRankingPage() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   const [storeFilter, setStoreFilter] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] =
+    useState('')
   const [searchText, setSearchText] = useState('')
 
   const loadResults = async () => {
@@ -130,15 +132,15 @@ function StoreRankingPage() {
               item &&
               item.active !== false &&
               item.isDemo !== true &&
-              getStoreKey(item) &&
-              getCategoryKey(item),
+              getStoreCode(item) &&
+              getCategoryName(item),
           )
         : []
 
       setResults(validResults)
     } catch (error) {
       console.error(
-        'Mağaza içi kategori sıralaması yüklenemedi:',
+        'Mağaza içi sıralama yüklenemedi:',
         error,
       )
 
@@ -159,15 +161,15 @@ function StoreRankingPage() {
     const storeMap = new Map()
 
     results.forEach((item) => {
-      const storeCode = getStoreKey(item)
+      const code = getStoreCode(item)
 
-      if (!storeCode) {
+      if (!code) {
         return
       }
 
-      storeMap.set(storeCode, {
-        code: storeCode,
-        name: String(item.storeName || '').trim(),
+      storeMap.set(code, {
+        code,
+        name: getStoreName(item),
       })
     })
 
@@ -183,18 +185,18 @@ function StoreRankingPage() {
     )
   }, [results])
 
-  const availableCategories = useMemo(() => {
+  const categories = useMemo(() => {
     const sourceResults = storeFilter
       ? results.filter(
           (item) =>
-            getStoreKey(item) === storeFilter,
+            getStoreCode(item) === storeFilter,
         )
       : results
 
     return [
       ...new Set(
         sourceResults
-          .map((item) => getCategoryKey(item))
+          .map((item) => getCategoryName(item))
           .filter(Boolean),
       ),
     ].sort((firstCategory, secondCategory) =>
@@ -208,69 +210,69 @@ function StoreRankingPage() {
   useEffect(() => {
     if (
       categoryFilter &&
-      !availableCategories.includes(categoryFilter)
+      !categories.includes(categoryFilter)
     ) {
       setCategoryFilter('')
     }
-  }, [availableCategories, categoryFilter])
+  }, [categories, categoryFilter])
 
   const bestParticipantResults = useMemo(() => {
-    const participantResultMap = new Map()
+    const bestResultMap = new Map()
 
     results.forEach((item) => {
-      const participantKey = getParticipantKey(item)
-      const groupKey = [
-        getStoreKey(item),
-        getCategoryKey(item),
-        participantKey,
+      const key = [
+        getStoreCode(item),
+        getCategoryName(item),
+        getParticipantKey(item),
       ].join('__')
 
-      const currentResult =
-        participantResultMap.get(groupKey)
+      const savedResult = bestResultMap.get(key)
 
       if (
-        !currentResult ||
-        compareResults(item, currentResult) < 0
+        !savedResult ||
+        compareResults(item, savedResult) < 0
       ) {
-        participantResultMap.set(groupKey, item)
+        bestResultMap.set(key, item)
       }
     })
 
-    return [...participantResultMap.values()]
+    return [...bestResultMap.values()]
   }, [results])
 
   const rankedResults = useMemo(() => {
-    const rankingGroupMap = new Map()
+    const groupMap = new Map()
 
     bestParticipantResults.forEach((item) => {
-      const storeCode = getStoreKey(item)
-      const categoryName = getCategoryKey(item)
-      const groupKey = `${storeCode}__${categoryName}`
+      const groupKey = [
+        getStoreCode(item),
+        getCategoryName(item),
+      ].join('__')
 
-      if (!rankingGroupMap.has(groupKey)) {
-        rankingGroupMap.set(groupKey, [])
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, [])
       }
 
-      rankingGroupMap.get(groupKey).push(item)
+      groupMap.get(groupKey).push(item)
     })
 
-    const rankedItems = []
+    const ranking = []
 
-    rankingGroupMap.forEach((groupItems) => {
-      const sortedGroup = [...groupItems].sort(
+    groupMap.forEach((groupItems) => {
+      const sortedItems = [...groupItems].sort(
         compareResults,
       )
 
-      sortedGroup.forEach((item, index) => {
-        rankedItems.push({
+      sortedItems.forEach((item, index) => {
+        ranking.push({
           ...item,
           storeRank: index + 1,
-          groupParticipantCount: sortedGroup.length,
+          groupParticipantCount:
+            sortedItems.length,
         })
       })
     })
 
-    return rankedItems
+    return ranking
   }, [bestParticipantResults])
 
   const filteredRanking = useMemo(() => {
@@ -281,19 +283,20 @@ function StoreRankingPage() {
       .filter((item) => {
         const matchesStore =
           !storeFilter ||
-          getStoreKey(item) === storeFilter
+          getStoreCode(item) === storeFilter
 
         const matchesCategory =
           !categoryFilter ||
-          getCategoryKey(item) === categoryFilter
+          getCategoryName(item) ===
+            categoryFilter
 
         const matchesSearch =
           !normalizedSearch ||
           [
-            item.fullName,
-            item.storeCode,
-            item.storeName,
-            item.categoryName,
+            item?.fullName,
+            item?.storeCode,
+            item?.storeName,
+            item?.categoryName,
           ]
             .map(normalizeText)
             .join(' ')
@@ -306,25 +309,24 @@ function StoreRankingPage() {
         )
       })
       .sort((firstItem, secondItem) => {
-        const storeDifference = getStoreKey(
-          firstItem,
-        ).localeCompare(
-          getStoreKey(secondItem),
-          'tr',
-          {
-            numeric: true,
-          },
-        )
+        const storeDifference =
+          getStoreCode(firstItem).localeCompare(
+            getStoreCode(secondItem),
+            'tr',
+            {
+              numeric: true,
+            },
+          )
 
         if (storeDifference !== 0) {
           return storeDifference
         }
 
         const categoryDifference =
-          getCategoryKey(
+          getCategoryName(
             firstItem,
           ).localeCompare(
-            getCategoryKey(secondItem),
+            getCategoryName(secondItem),
             'tr',
           )
 
@@ -333,8 +335,8 @@ function StoreRankingPage() {
         }
 
         return (
-          Number(firstItem.storeRank || 0) -
-          Number(secondItem.storeRank || 0)
+          Number(firstItem?.storeRank || 0) -
+          Number(secondItem?.storeRank || 0)
         )
       })
   }, [
@@ -344,6 +346,42 @@ function StoreRankingPage() {
     searchText,
   ])
 
+  const groupedRankings = useMemo(() => {
+    const groupMap = new Map()
+
+    filteredRanking.forEach((item) => {
+      const storeCode = getStoreCode(item)
+      const storeName = getStoreName(item)
+      const categoryName =
+        getCategoryName(item)
+
+      const key = `${storeCode}__${categoryName}`
+
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          storeCode,
+          storeName,
+          categoryName,
+          participants: [],
+        })
+      }
+
+      groupMap.get(key).participants.push(item)
+    })
+
+    return [...groupMap.values()].map(
+      (group) => ({
+        ...group,
+        participants: group.participants.sort(
+          (firstItem, secondItem) =>
+            Number(firstItem?.storeRank || 0) -
+            Number(secondItem?.storeRank || 0),
+        ),
+      }),
+    )
+  }, [filteredRanking])
+
   const selectedStore = useMemo(
     () =>
       stores.find(
@@ -352,69 +390,15 @@ function StoreRankingPage() {
     [stores, storeFilter],
   )
 
-  const selectedRanking = useMemo(() => {
-    if (!storeFilter || !categoryFilter) {
-      return []
-    }
-
-    return filteredRanking
-      .filter(
-        (item) =>
-          getStoreKey(item) === storeFilter &&
-          getCategoryKey(item) ===
-            categoryFilter,
-      )
-      .sort(
-        (firstItem, secondItem) =>
-          Number(firstItem.storeRank || 0) -
-          Number(secondItem.storeRank || 0),
-      )
-  }, [
-    filteredRanking,
-    storeFilter,
-    categoryFilter,
-  ])
-
-  const groupedRankings = useMemo(() => {
-    const groupMap = new Map()
-
-    filteredRanking.forEach((item) => {
-      const storeCode = getStoreKey(item)
-      const categoryName = getCategoryKey(item)
-      const groupKey = `${storeCode}__${categoryName}`
-
-      if (!groupMap.has(groupKey)) {
-        groupMap.set(groupKey, {
-          key: groupKey,
-          storeCode,
-          storeName: String(
-            item.storeName || '',
-          ).trim(),
-          categoryName,
-          participants: [],
-        })
-      }
-
-      groupMap.get(groupKey).participants.push(item)
-    })
-
-    return [...groupMap.values()].map((group) => ({
-      ...group,
-      participants: group.participants.sort(
-        (firstItem, secondItem) =>
-          Number(firstItem.storeRank || 0) -
-          Number(secondItem.storeRank || 0),
-      ),
-    }))
-  }, [filteredRanking])
-
   const formatDuration = (seconds = 0) => {
     const safeSeconds = Math.max(
       0,
       Number(seconds || 0),
     )
 
-    const minutes = Math.floor(safeSeconds / 60)
+    const minutes = Math.floor(
+      safeSeconds / 60,
+    )
     const remainingSeconds = Math.round(
       safeSeconds % 60,
     )
@@ -429,17 +413,9 @@ function StoreRankingPage() {
   }
 
   const getRankLabel = (rank) => {
-    if (rank === 1) {
-      return '🥇'
-    }
-
-    if (rank === 2) {
-      return '🥈'
-    }
-
-    if (rank === 3) {
-      return '🥉'
-    }
+    if (rank === 1) return '🥇'
+    if (rank === 2) return '🥈'
+    if (rank === 3) return '🥉'
 
     return rank
   }
@@ -450,71 +426,89 @@ function StoreRankingPage() {
     setSearchText('')
   }
 
+  const downloadWorkbook = (
+    workbook,
+    fileName,
+  ) => {
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: 'xlsx',
+      type: 'array',
+      compression: true,
+    })
+
+    const excelBlob = new Blob(
+      [excelBuffer],
+      {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    )
+
+    const downloadUrl =
+      window.URL.createObjectURL(excelBlob)
+
+    const downloadLink =
+      document.createElement('a')
+
+    downloadLink.href = downloadUrl
+    downloadLink.download = fileName
+    downloadLink.style.display = 'none'
+
+    document.body.appendChild(downloadLink)
+    downloadLink.click()
+    document.body.removeChild(downloadLink)
+
+    window.setTimeout(() => {
+      window.URL.revokeObjectURL(downloadUrl)
+    }, 1000)
+  }
+
   const handleExcelDownload = () => {
-    if (!filteredRanking.length || exporting) {
+    if (exporting) {
+      return
+    }
+
+    if (!filteredRanking.length) {
+      window.alert(
+        'Excel dosyasına aktarılacak sıralama verisi bulunamadı.',
+      )
       return
     }
 
     try {
       setExporting(true)
 
-      const exportRows = filteredRanking.map(
+      const detailRows = filteredRanking.map(
         (item) => ({
-          'Mağaza Kodu': getStoreKey(item),
-          'Mağaza Adı': item.storeName || '',
-          Kategori: getCategoryKey(item),
+          'Mağaza Kodu': getStoreCode(item),
+          'Mağaza Adı': getStoreName(item),
+          Kategori: getCategoryName(item),
           'Mağaza İçi Sıra': Number(
-            item.storeRank || 0,
+            item?.storeRank || 0,
           ),
-          'Ad Soyad': item.fullName || '',
-          Puan: Number(item.score || 0),
+          'Ad Soyad': String(
+            item?.fullName || '',
+          ),
+          Puan: Number(item?.score || 0),
           Doğru: Number(
-            item.correctCount || 0,
+            item?.correctCount || 0,
           ),
           Yanlış: Number(
-            item.wrongCount || 0,
+            item?.wrongCount || 0,
           ),
           'Toplam Soru': Number(
-            item.totalQuestions || 0,
+            item?.totalQuestions || 0,
           ),
-          Süre: formatDuration(item.duration),
+          Süre: formatDuration(
+            item?.duration,
+          ),
           'Süre (Saniye)': Number(
-            item.duration || 0,
+            item?.duration || 0,
           ),
           'Tamamlanma Tarihi':
-            formatCompletedAt(item.completedAt),
+            formatCompletedAt(
+              item?.completedAt,
+            ),
         }),
-      )
-
-      const worksheet =
-        XLSX.utils.json_to_sheet(exportRows)
-
-      worksheet['!cols'] = [
-        { wch: 14 },
-        { wch: 28 },
-        { wch: 24 },
-        { wch: 17 },
-        { wch: 28 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 16 },
-        { wch: 22 },
-      ]
-
-      worksheet['!autofilter'] = {
-        ref: `A1:L${exportRows.length + 1}`,
-      }
-
-      const workbook =
-        XLSX.utils.book_new()
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        'Mağaza Sıralaması',
       )
 
       const summaryRows = groupedRankings.map(
@@ -525,47 +519,89 @@ function StoreRankingPage() {
           'Katılımcı Sayısı':
             group.participants.length,
           Birinci:
-            group.participants[0]?.fullName || '',
+            group.participants[0]
+              ?.fullName || '',
           'Birinci Puan':
-            Number(
-              group.participants[0]?.score || 0,
-            ),
+            group.participants[0]
+              ? Number(
+                  group.participants[0]
+                    ?.score || 0,
+                )
+              : '',
           İkinci:
-            group.participants[1]?.fullName || '',
+            group.participants[1]
+              ?.fullName || '',
           'İkinci Puan':
             group.participants[1]
               ? Number(
-                  group.participants[1]?.score ||
-                    0,
+                  group.participants[1]
+                    ?.score || 0,
                 )
               : '',
           Üçüncü:
-            group.participants[2]?.fullName || '',
+            group.participants[2]
+              ?.fullName || '',
           'Üçüncü Puan':
             group.participants[2]
               ? Number(
-                  group.participants[2]?.score ||
-                    0,
+                  group.participants[2]
+                    ?.score || 0,
                 )
               : '',
         }),
       )
+
+      const detailWorksheet =
+        XLSX.utils.json_to_sheet(detailRows)
+
+      detailWorksheet['!cols'] = [
+        { wch: 14 },
+        { wch: 30 },
+        { wch: 25 },
+        { wch: 18 },
+        { wch: 30 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 17 },
+        { wch: 22 },
+      ]
+
+      detailWorksheet['!autofilter'] = {
+        ref: `A1:L${detailRows.length + 1}`,
+      }
+
+      detailWorksheet['!freeze'] = {
+        xSplit: 0,
+        ySplit: 1,
+      }
 
       const summaryWorksheet =
         XLSX.utils.json_to_sheet(summaryRows)
 
       summaryWorksheet['!cols'] = [
         { wch: 14 },
-        { wch: 28 },
-        { wch: 24 },
+        { wch: 30 },
+        { wch: 25 },
         { wch: 18 },
-        { wch: 28 },
+        { wch: 30 },
         { wch: 14 },
-        { wch: 28 },
+        { wch: 30 },
         { wch: 14 },
-        { wch: 28 },
+        { wch: 30 },
         { wch: 14 },
       ]
+
+      const workbook =
+        XLSX.utils.book_new()
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        detailWorksheet,
+        'Detaylı Sıralama',
+      )
 
       XLSX.utils.book_append_sheet(
         workbook,
@@ -573,50 +609,51 @@ function StoreRankingPage() {
         'Kategori Özeti',
       )
 
-      const dateText = new Date()
+      const today = new Date()
         .toISOString()
         .slice(0, 10)
 
-      const storeFilePart = storeFilter
+      const storeName = storeFilter
         ? sanitizeFileName(
             selectedStore?.name ||
-              selectedStore?.code,
+              selectedStore?.code ||
+              storeFilter,
           )
         : 'Tum-Magazalar'
 
-      const categoryFilePart = categoryFilter
+      const categoryName = categoryFilter
         ? sanitizeFileName(categoryFilter)
         : 'Tum-Kategoriler'
 
-      const fileName =
-        `Magaza-Ici-Kategori-Siralamasi-${storeFilePart}-${categoryFilePart}-${dateText}.xlsx`
-
-      XLSX.writeFile(workbook, fileName, {
-        compression: true,
-      })
+      downloadWorkbook(
+        workbook,
+        `Magaza-Ici-Kategori-Siralamasi-${storeName}-${categoryName}-${today}.xlsx`,
+      )
     } catch (error) {
       console.error(
-        'Excel dosyası oluşturulamadı:',
+        'Excel dosyası indirilemedi:',
         error,
       )
 
       window.alert(
-        'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+        'Excel dosyası indirilemedi. Tarayıcı indirme iznini kontrol edip tekrar deneyin.',
       )
     } finally {
-      setExporting(false)
+      window.setTimeout(() => {
+        setExporting(false)
+      }, 500)
     }
   }
 
   const uniqueStoreCount = new Set(
     filteredRanking.map((item) =>
-      getStoreKey(item),
+      getStoreCode(item),
     ),
   ).size
 
   const uniqueCategoryCount = new Set(
     filteredRanking.map((item) =>
-      getCategoryKey(item),
+      getCategoryName(item),
     ),
   ).size
 
@@ -629,7 +666,9 @@ function StoreRankingPage() {
           <div>
             <span>Yönetim</span>
 
-            <h1>Mağaza İçi Kategori Sıralaması</h1>
+            <h1>
+              Mağaza İçi Kategori Sıralaması
+            </h1>
 
             <p>
               Her mağazanın kategori bazlı başarı
@@ -643,7 +682,6 @@ function StoreRankingPage() {
               type="button"
               onClick={loadResults}
               disabled={loading}
-              title="Verileri yenile"
             >
               <FiRefreshCw />
 
@@ -657,12 +695,7 @@ function StoreRankingPage() {
             <button
               type="button"
               onClick={handleExcelDownload}
-              disabled={
-                loading ||
-                exporting ||
-                filteredRanking.length === 0
-              }
-              title="Filtrelenmiş sıralamayı Excel olarak indir"
+              disabled={loading || exporting}
             >
               <FiDownload />
 
@@ -720,16 +753,14 @@ function StoreRankingPage() {
                 Tüm kategoriler
               </option>
 
-              {availableCategories.map(
-                (category) => (
-                  <option
-                    key={category}
-                    value={category}
-                  >
-                    {category}
-                  </option>
-                ),
-              )}
+              {categories.map((category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category}
+                </option>
+              ))}
             </select>
           </label>
 
@@ -783,229 +814,134 @@ function StoreRankingPage() {
           </article>
         </section>
 
-        {storeFilter && categoryFilter && (
-          <section className="ranking-card">
-            <header className="ranking-selected-header">
-              <div>
-                <span>Seçili sıralama</span>
+        <section className="ranking-groups">
+          {loading ? (
+            <div className="ranking-empty">
+              Sıralamalar yükleniyor...
+            </div>
+          ) : loadError ? (
+            <div className="ranking-empty">
+              {loadError}
+            </div>
+          ) : groupedRankings.length === 0 ? (
+            <div className="ranking-empty">
+              Bu filtrelere uygun sıralama
+              bulunamadı.
+            </div>
+          ) : (
+            groupedRankings.map((group) => (
+              <article
+                className="ranking-card"
+                key={group.key}
+              >
+                <header className="ranking-selected-header">
+                  <div>
+                    <span>
+                      Mağaza içi kategori
+                      sıralaması
+                    </span>
 
-                <h2>
-                  {selectedStore?.name ||
-                    selectedStore?.code ||
-                    'Mağaza'}
-                  {' → '}
-                  {categoryFilter}
-                </h2>
-              </div>
-
-              <strong>
-                {selectedRanking.length}{' '}
-                katılımcı
-              </strong>
-            </header>
-
-            {selectedRanking.length === 0 ? (
-              <div className="ranking-empty">
-                Bu mağaza ve kategori için sonuç
-                bulunamadı.
-              </div>
-            ) : (
-              <div className="ranking-table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Mağaza İçi Sıra</th>
-                      <th>Ad Soyad</th>
-                      <th>Puan</th>
-                      <th>Doğru</th>
-                      <th>Yanlış</th>
-                      <th>Süre</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {selectedRanking.map(
-                      (item) => (
-                        <tr key={item.id}>
-                          <td>
-                            <span
-                              className={
-                                item.storeRank <= 3
-                                  ? 'ranking-medal'
-                                  : 'ranking-number'
-                              }
-                            >
-                              {getRankLabel(
-                                item.storeRank,
-                              )}
-                            </span>
-                          </td>
-
-                          <td>
-                            <strong>
-                              {item.fullName ||
-                                '-'}
-                            </strong>
-                          </td>
-
-                          <td>
-                            <span className="ranking-score">
-                              {Number(
-                                item.score || 0,
-                              )}
-                            </span>
-                          </td>
-
-                          <td>
-                            {Number(
-                              item.correctCount ||
-                                0,
-                            )}
-                          </td>
-
-                          <td>
-                            {Number(
-                              item.wrongCount ||
-                                0,
-                            )}
-                          </td>
-
-                          <td>
-                            {formatDuration(
-                              item.duration,
-                            )}
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
-
-        {!storeFilter ||
-        !categoryFilter ? (
-          <section className="ranking-groups">
-            {loading ? (
-              <div className="ranking-empty">
-                Sıralamalar yükleniyor...
-              </div>
-            ) : loadError ? (
-              <div className="ranking-empty">
-                {loadError}
-              </div>
-            ) : groupedRankings.length === 0 ? (
-              <div className="ranking-empty">
-                Bu filtrelere uygun sıralama
-                bulunamadı.
-              </div>
-            ) : (
-              groupedRankings.map((group) => (
-                <article
-                  className="ranking-card"
-                  key={group.key}
-                >
-                  <header className="ranking-selected-header">
-                    <div>
-                      <span>
-                        Mağaza içi kategori
-                        sıralaması
-                      </span>
-
-                      <h2>
-                        {group.storeCode}
-                        {group.storeName
-                          ? ` - ${group.storeName}`
-                          : ''}
-                        {' → '}
-                        {group.categoryName}
-                      </h2>
-                    </div>
-
-                    <strong>
-                      {
-                        group.participants
-                          .length
-                      }{' '}
-                      katılımcı
-                    </strong>
-                  </header>
-
-                  <div className="ranking-table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Sıra</th>
-                          <th>Ad Soyad</th>
-                          <th>Puan</th>
-                          <th>Süre</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {group.participants.map(
-                          (item) => (
-                            <tr key={item.id}>
-                              <td>
-                                <span
-                                  className={
-                                    item.storeRank <=
-                                    3
-                                      ? 'ranking-medal'
-                                      : 'ranking-number'
-                                  }
-                                >
-                                  {getRankLabel(
-                                    item.storeRank,
-                                  )}
-                                </span>
-                              </td>
-
-                              <td>
-                                <strong>
-                                  {item.fullName ||
-                                    '-'}
-                                </strong>
-                              </td>
-
-                              <td>
-                                <span className="ranking-score">
-                                  {Number(
-                                    item.score ||
-                                      0,
-                                  )}
-                                </span>
-                              </td>
-
-                              <td>
-                                {formatDuration(
-                                  item.duration,
-                                )}
-                              </td>
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
+                    <h2>
+                      {group.storeCode}
+                      {group.storeName
+                        ? ` - ${group.storeName}`
+                        : ''}
+                      {' → '}
+                      {group.categoryName}
+                    </h2>
                   </div>
-                </article>
-              ))
-            )}
-          </section>
-        ) : null}
+
+                  <strong>
+                    {group.participants.length}{' '}
+                    katılımcı
+                  </strong>
+                </header>
+
+                <div className="ranking-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Sıra</th>
+                        <th>Ad Soyad</th>
+                        <th>Puan</th>
+                        <th>Doğru</th>
+                        <th>Yanlış</th>
+                        <th>Süre</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {group.participants.map(
+                        (item) => (
+                          <tr key={item.id}>
+                            <td>
+                              <span
+                                className={
+                                  item.storeRank <= 3
+                                    ? 'ranking-medal'
+                                    : 'ranking-number'
+                                }
+                              >
+                                {getRankLabel(
+                                  item.storeRank,
+                                )}
+                              </span>
+                            </td>
+
+                            <td>
+                              <strong>
+                                {item.fullName ||
+                                  '-'}
+                              </strong>
+                            </td>
+
+                            <td>
+                              <span className="ranking-score">
+                                {Number(
+                                  item.score || 0,
+                                )}
+                              </span>
+                            </td>
+
+                            <td>
+                              {Number(
+                                item.correctCount ||
+                                  0,
+                              )}
+                            </td>
+
+                            <td>
+                              {Number(
+                                item.wrongCount ||
+                                  0,
+                              )}
+                            </td>
+
+                            <td>
+                              {formatDuration(
+                                item.duration,
+                              )}
+                            </td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
 
         <div className="ranking-note">
           <FiAward />
 
           <span>
-            Her katılımcının aynı mağaza ve
-            kategorideki en iyi sonucu dikkate
-            alınır. Sıralama önce puana, puan
-            eşitse daha kısa sınav süresine,
-            süre de eşitse daha erken tamamlanma
-            zamanına göre belirlenir.
+            Excel İndir butonu ekrandaki mevcut
+            filtrelere göre iki sayfalı bir Excel
+            dosyası oluşturur. İlk sayfada detaylı
+            sıralama, ikinci sayfada mağaza ve
+            kategori özeti bulunur.
           </span>
         </div>
       </section>
