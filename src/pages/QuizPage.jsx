@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   FiAlertCircle,
@@ -19,6 +19,7 @@ import { prepareQuiz } from '../utils/quiz'
 import '../styles/quiz.css'
 
 const ANSWER_FEEDBACK_DELAY = 1500
+const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
 
 const ANSWER_COLORS = [
   {
@@ -51,46 +52,159 @@ const ANSWER_COLORS = [
   },
 ]
 
+const normalizeText = (value) =>
+  String(value ?? '').trim()
+
+const normalizeCorrectAnswer = (value) => {
+  if (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 3
+  ) {
+    return value
+  }
+
+  const normalizedValue = normalizeText(value).toUpperCase()
+
+  const letterIndex =
+    ANSWER_LETTERS.indexOf(normalizedValue)
+
+  if (letterIndex >= 0) {
+    return letterIndex
+  }
+
+  const numericValue = Number(normalizedValue)
+
+  if (
+    Number.isInteger(numericValue) &&
+    numericValue >= 0 &&
+    numericValue <= 3
+  ) {
+    return numericValue
+  }
+
+  if (
+    Number.isInteger(numericValue) &&
+    numericValue >= 1 &&
+    numericValue <= 4
+  ) {
+    return numericValue - 1
+  }
+
+  return -1
+}
+
+const normalizeQuestion = (question) => {
+  const correctAnswerIndex =
+    normalizeCorrectAnswer(
+      question?.correctAnswer,
+    )
+
+  const rawOptions = Array.isArray(
+    question?.options,
+  )
+    ? question.options
+    : []
+
+  const options = ANSWER_LETTERS.map(
+    (letter, index) => {
+      const rawOption = rawOptions[index]
+
+      const text =
+        typeof rawOption === 'string'
+          ? normalizeText(rawOption)
+          : normalizeText(
+              rawOption?.text ??
+                rawOption?.label ??
+                rawOption?.value,
+            )
+
+      const isCorrect =
+        typeof rawOption?.isCorrect ===
+        'boolean'
+          ? rawOption.isCorrect
+          : index === correctAnswerIndex
+
+      return {
+        text,
+        isCorrect,
+      }
+    },
+  )
+
+  const detectedCorrectIndex =
+    options.findIndex(
+      (option) => option.isCorrect,
+    )
+
+  return {
+    id: normalizeText(question?.id),
+    question: normalizeText(
+      question?.question,
+    ),
+    options,
+    correctAnswer:
+      detectedCorrectIndex >= 0
+        ? detectedCorrectIndex
+        : correctAnswerIndex,
+  }
+}
+
 function QuizPage() {
   const navigate = useNavigate()
   const { categoryId } = useParams()
   const feedbackTimerRef = useRef(null)
 
   const isDemo =
-    sessionStorage.getItem('musteriBuddyMode') === 'demo'
+    sessionStorage.getItem(
+      'musteriBuddyMode',
+    ) === 'demo'
 
-  const [questions, setQuestions] = useState([])
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [questions, setQuestions] =
+    useState([])
+  const [currentIndex, setCurrentIndex] =
+    useState(0)
   const [answers, setAnswers] = useState({})
   const [seconds, setSeconds] = useState(0)
 
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isAnswerLocked, setIsAnswerLocked] =
+  const [isLoading, setIsLoading] =
+    useState(true)
+  const [isSaving, setIsSaving] =
     useState(false)
+  const [
+    isAnswerLocked,
+    setIsAnswerLocked,
+  ] = useState(false)
   const [error, setError] = useState('')
+
+  const categoryName =
+    categoryNames[categoryId] || ''
 
   useEffect(() => {
     let isMounted = true
 
-    async function loadQuestions() {
+    const loadQuestions = async () => {
       try {
         setIsLoading(true)
         setError('')
-
-        const categoryName = categoryNames[categoryId]
+        setQuestions([])
+        setCurrentIndex(0)
+        setAnswers({})
+        setSeconds(0)
+        setIsAnswerLocked(false)
 
         if (!categoryName) {
-          navigate('/kategoriler', {
-            replace: true,
-          })
-
-          return
+          throw new Error(
+            'Kategori bilgisi bulunamadı.',
+          )
         }
 
         if (!isDemo) {
           const alreadyCompleted =
-            await hasCompletedCategory(categoryId)
+            await hasCompletedCategory(
+              categoryId,
+            )
 
           if (alreadyCompleted) {
             throw new Error(
@@ -99,46 +213,84 @@ function QuizPage() {
           }
         }
 
-        const firestoreQuestions =
-          await getQuestionsByCategory(categoryName)
+        const loadedQuestions =
+          await getQuestionsByCategory(
+            categoryName,
+          )
 
-        const preparedQuestions =
-          firestoreQuestions.map((question) => ({
-            id: question.id,
-            question: question.question,
-            options: question.options,
-            correctAnswer: [
-              'A',
-              'B',
-              'C',
-              'D',
-            ].indexOf(
-              String(
-                question.correctAnswer || '',
-              ).toUpperCase(),
-            ),
-          }))
+        const normalizedQuestions =
+          Array.isArray(loadedQuestions)
+            ? loadedQuestions
+                .map(normalizeQuestion)
+                .filter((question) => {
+                  const hasValidQuestion =
+                    Boolean(
+                      question.id &&
+                        question.question,
+                    )
 
-        const requiredCount = isDemo ? 5 : 10
+                  const hasFourOptions =
+                    question.options.length ===
+                      4 &&
+                    question.options.every(
+                      (option) =>
+                        Boolean(option.text),
+                    )
+
+                  const correctOptionCount =
+                    question.options.filter(
+                      (option) =>
+                        option.isCorrect,
+                    ).length
+
+                  return (
+                    hasValidQuestion &&
+                    hasFourOptions &&
+                    correctOptionCount === 1
+                  )
+                })
+            : []
+
+        const requiredCount = isDemo
+          ? 5
+          : 10
 
         if (
-          preparedQuestions.length < requiredCount
+          normalizedQuestions.length <
+          requiredCount
         ) {
           throw new Error(
-            `${categoryName} kategorisinde en az ${requiredCount} geçerli soru bulunmalıdır.`,
+            `${categoryName} kategorisinde ${normalizedQuestions.length} geçerli soru bulundu. Sınav için en az ${requiredCount} geçerli soru gerekir.`,
+          )
+        }
+
+        const preparedQuestions =
+          prepareQuiz(
+            normalizedQuestions,
+            requiredCount,
+          )
+
+        if (
+          !Array.isArray(
+            preparedQuestions,
+          ) ||
+          preparedQuestions.length === 0
+        ) {
+          throw new Error(
+            'Sınav soruları hazırlanamadı.',
           )
         }
 
         if (isMounted) {
           setQuestions(
-            prepareQuiz(
-              preparedQuestions,
-              requiredCount,
-            ),
+            preparedQuestions,
           )
         }
       } catch (loadError) {
-        console.error(loadError)
+        console.error(
+          'Quiz soruları yüklenemedi:',
+          loadError,
+        )
 
         if (isMounted) {
           setError(
@@ -158,24 +310,32 @@ function QuizPage() {
     return () => {
       isMounted = false
     }
-  }, [categoryId, isDemo, navigate])
+  }, [
+    categoryId,
+    categoryName,
+    isDemo,
+  ])
 
   useEffect(() => {
     if (
       isLoading ||
       error ||
-      !questions.length ||
+      questions.length === 0 ||
       isSaving
     ) {
       return undefined
     }
 
-    const timer = window.setInterval(() => {
-      setSeconds((value) => value + 1)
-    }, 1000)
+    const timerId =
+      window.setInterval(() => {
+        setSeconds(
+          (currentSeconds) =>
+            currentSeconds + 1,
+        )
+      }, 1000)
 
     return () => {
-      window.clearInterval(timer)
+      window.clearInterval(timerId)
     }
   }, [
     isLoading,
@@ -194,13 +354,39 @@ function QuizPage() {
     }
   }, [])
 
-  const formatTime = (totalSeconds) => {
+  const currentQuestion =
+    questions[currentIndex] || null
+
+  const selectedAnswer =
+    currentQuestion
+      ? answers[currentQuestion.id]
+      : undefined
+
+  const progress =
+    questions.length > 0
+      ? ((currentIndex + 1) /
+          questions.length) *
+        100
+      : 0
+
+  const selectedOption =
+    currentQuestion &&
+    selectedAnswer !== undefined
+      ? currentQuestion.options[
+          selectedAnswer
+        ]
+      : null
+
+  const answerIsCorrect =
+    selectedOption?.isCorrect === true
+
+  const formattedTime = useMemo(() => {
     const minutes = Math.floor(
-      totalSeconds / 60,
+      seconds / 60,
     )
 
     const remainingSeconds =
-      totalSeconds % 60
+      seconds % 60
 
     return `${String(minutes).padStart(
       2,
@@ -208,6 +394,278 @@ function QuizPage() {
     )}:${String(
       remainingSeconds,
     ).padStart(2, '0')}`
+  }, [seconds])
+
+  const finishQuiz = async (
+    completedAnswers,
+  ) => {
+    if (isSaving) {
+      return
+    }
+
+    const correctCount =
+      questions.reduce(
+        (total, question) => {
+          const selectedIndex =
+            completedAnswers[
+              question.id
+            ]
+
+          const option =
+            question.options[
+              selectedIndex
+            ]
+
+          return (
+            total +
+            (option?.isCorrect ? 1 : 0)
+          )
+        },
+        0,
+      )
+
+    const result = {
+      categoryId,
+      categoryName,
+      correctCount,
+      wrongCount:
+        questions.length -
+        correctCount,
+      totalQuestions:
+        questions.length,
+      score: Math.round(
+        (correctCount /
+          questions.length) *
+          100,
+      ),
+      duration: seconds,
+      isDemo,
+      completedAt:
+        new Date().toISOString(),
+    }
+
+    try {
+      setIsSaving(true)
+
+      if (!isDemo) {
+        await saveExamResult(result)
+      }
+
+      sessionStorage.setItem(
+        'musteriBuddyResult',
+        JSON.stringify(result),
+      )
+
+      navigate('/sonuc')
+    } catch (saveError) {
+      console.error(
+        'Sınav sonucu kaydedilemedi:',
+        saveError,
+      )
+
+      setIsAnswerLocked(false)
+
+      setError(
+        saveError?.message ||
+          'Sınav sonucu kaydedilemedi.',
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const moveToNextQuestion = (
+    updatedAnswers,
+  ) => {
+    if (
+      currentIndex >=
+      questions.length - 1
+    ) {
+      finishQuiz(updatedAnswers)
+      return
+    }
+
+    setCurrentIndex(
+      (index) => index + 1,
+    )
+    setIsAnswerLocked(false)
+  }
+
+  const handleSelect = (
+    optionIndex,
+  ) => {
+    if (
+      !currentQuestion ||
+      isAnswerLocked ||
+      isSaving ||
+      selectedAnswer !== undefined
+    ) {
+      return
+    }
+
+    const updatedAnswers = {
+      ...answers,
+      [currentQuestion.id]:
+        optionIndex,
+    }
+
+    setAnswers(updatedAnswers)
+    setIsAnswerLocked(true)
+
+    feedbackTimerRef.current =
+      window.setTimeout(() => {
+        moveToNextQuestion(
+          updatedAnswers,
+        )
+      }, ANSWER_FEEDBACK_DELAY)
+  }
+
+  const getAnswerClassName = (
+    option,
+    index,
+  ) => {
+    if (
+      selectedAnswer === undefined
+    ) {
+      return ''
+    }
+
+    if (option.isCorrect) {
+      return 'answer-option-correct'
+    }
+
+    if (
+      selectedAnswer === index
+    ) {
+      return 'answer-option-wrong'
+    }
+
+    return 'answer-option-disabled'
+  }
+
+  const getAnswerVisuals = (
+    option,
+    index,
+  ) => {
+    const baseColor =
+      ANSWER_COLORS[index] ||
+      ANSWER_COLORS[0]
+
+    const isSelected =
+      selectedAnswer === index
+
+    const isRevealed =
+      selectedAnswer !== undefined
+
+    if (
+      isRevealed &&
+      option.isCorrect
+    ) {
+      return {
+        card: {
+          opacity: 1,
+          transform:
+            'scale(1.012)',
+          border:
+            '3px solid rgba(4, 178, 111, 0.98)',
+          borderLeft:
+            '9px solid #04b26f',
+          background:
+            'linear-gradient(145deg, #f5fff9 0%, #dcfbed 100%)',
+          boxShadow:
+            '0 18px 32px rgba(2, 164, 103, 0.25), 0 0 0 4px rgba(24, 218, 145, 0.14), inset 0 1px 0 #ffffff',
+        },
+        letter: {
+          background:
+            'linear-gradient(145deg, #38e5a1 0%, #04ad6c 100%)',
+        },
+        check: {
+          color: '#ffffff',
+          border: '0',
+          background:
+            'linear-gradient(145deg, #38e5a1, #04ad6c)',
+        },
+        textColor: '#063f2f',
+      }
+    }
+
+    if (
+      isRevealed &&
+      isSelected &&
+      !option.isCorrect
+    ) {
+      return {
+        card: {
+          opacity: 1,
+          transform:
+            'scale(1.012)',
+          border:
+            '3px solid rgba(235, 56, 86, 0.98)',
+          borderLeft:
+            '9px solid #eb3856',
+          background:
+            'linear-gradient(145deg, #fff7f9 0%, #ffe1e8 100%)',
+          boxShadow:
+            '0 18px 32px rgba(224, 46, 78, 0.22), 0 0 0 4px rgba(239, 63, 95, 0.12), inset 0 1px 0 #ffffff',
+        },
+        letter: {
+          background:
+            'linear-gradient(145deg, #ff758c 0%, #e93455 100%)',
+        },
+        check: {
+          color: '#ffffff',
+          border: '0',
+          background:
+            'linear-gradient(145deg, #ff758c, #e93455)',
+        },
+        textColor: '#71142a',
+      }
+    }
+
+    if (isRevealed) {
+      return {
+        card: {
+          opacity: 0.46,
+          transform:
+            'scale(0.992)',
+          filter:
+            'saturate(0.45)',
+        },
+        letter: {
+          background:
+            'linear-gradient(145deg, #aebdca, #8296aa)',
+        },
+        check: {
+          color: '#91a1b0',
+        },
+        textColor: '#647589',
+      }
+    }
+
+    return {
+      card: {
+        border:
+          `2px solid ${baseColor.border}`,
+        borderLeft:
+          `7px solid ${baseColor.main}`,
+        background:
+          `radial-gradient(circle at 78% 130%, ${baseColor.soft} 0%, transparent 50%), linear-gradient(145deg, #ffffff 0%, #f9fcff 100%)`,
+        boxShadow:
+          '0 12px 24px rgba(9, 54, 101, 0.09), 0 3px 9px rgba(6, 65, 111, 0.06), inset 0 1px 0 #ffffff',
+      },
+      letter: {
+        background:
+          `linear-gradient(145deg, ${baseColor.light} 0%, ${baseColor.main} 100%)`,
+        boxShadow:
+          `0 11px 22px ${baseColor.shadow}, inset 0 1px 0 rgba(255, 255, 255, 0.38)`,
+      },
+      check: {
+        color: baseColor.main,
+        border:
+          `3px solid ${baseColor.main}`,
+      },
+      textColor: '#062653',
+    }
   }
 
   if (isLoading) {
@@ -215,11 +673,14 @@ function QuizPage() {
       <main className="quiz-state-page">
         <FiLoader className="loading-icon" />
 
-        <h1>Sorular hazırlanıyor</h1>
+        <h1>
+          Sorular hazırlanıyor
+        </h1>
 
         <p>
-          Sınavınız güvenli şekilde hazırlanıyor.
-          Lütfen kısa bir süre bekleyin.
+          Sınavınız güvenli şekilde
+          hazırlanıyor. Lütfen kısa bir
+          süre bekleyin.
         </p>
       </main>
     )
@@ -246,307 +707,32 @@ function QuizPage() {
     )
   }
 
-  const currentQuestion =
-    questions[currentIndex]
+  if (
+    questions.length === 0 ||
+    !currentQuestion
+  ) {
+    return (
+      <main className="quiz-state-page">
+        <FiAlertCircle className="error-icon" />
 
-  const selectedAnswer =
-    answers[currentQuestion.id]
+        <h1>Soru bulunamadı</h1>
 
-  const progress =
-    ((currentIndex + 1) / questions.length) *
-    100
+        <p>
+          Bu kategori için görüntülenecek
+          geçerli soru bulunamadı.
+        </p>
 
-  const finishQuiz = async (
-    completedAnswers = answers,
-  ) => {
-    if (isSaving) {
-      return
-    }
-
-    const correctCount = questions.reduce(
-      (total, question) => {
-        const selectedIndex =
-          completedAnswers[question.id]
-
-        const selectedOption =
-          question.options[selectedIndex]
-
-        return (
-          total +
-          (selectedOption?.isCorrect ? 1 : 0)
-        )
-      },
-      0,
+        <button
+          type="button"
+          onClick={() =>
+            navigate('/kategoriler')
+          }
+        >
+          Kategorilere Dön
+        </button>
+      </main>
     )
-
-    const result = {
-      categoryId,
-      categoryName:
-        categoryNames[categoryId],
-      correctCount,
-      wrongCount:
-        questions.length - correctCount,
-      totalQuestions: questions.length,
-      score: Math.round(
-        (correctCount / questions.length) *
-          100,
-      ),
-      duration: seconds,
-      isDemo,
-      completedAt:
-        new Date().toISOString(),
-    }
-
-    try {
-      setIsSaving(true)
-
-      if (!isDemo) {
-        await saveExamResult(result)
-      }
-
-      sessionStorage.setItem(
-        'musteriBuddyResult',
-        JSON.stringify(result),
-      )
-
-      navigate('/sonuc')
-    } catch (saveError) {
-      console.error(saveError)
-
-      setIsAnswerLocked(false)
-
-      setError(
-        saveError?.message ||
-          'Sınav sonucu kaydedilemedi. Lütfen tekrar deneyin.',
-      )
-    } finally {
-      setIsSaving(false)
-    }
   }
-
-  const moveToNextQuestion = (
-    completedAnswers,
-  ) => {
-    if (
-      currentIndex ===
-      questions.length - 1
-    ) {
-      finishQuiz(completedAnswers)
-      return
-    }
-
-    setCurrentIndex(
-      (value) => value + 1,
-    )
-
-    setIsAnswerLocked(false)
-  }
-
-  const handleSelect = (optionIndex) => {
-    if (
-      isAnswerLocked ||
-      isSaving ||
-      selectedAnswer !== undefined
-    ) {
-      return
-    }
-
-    const updatedAnswers = {
-      ...answers,
-      [currentQuestion.id]: optionIndex,
-    }
-
-    setAnswers(updatedAnswers)
-    setIsAnswerLocked(true)
-
-    feedbackTimerRef.current =
-      window.setTimeout(() => {
-        moveToNextQuestion(updatedAnswers)
-      }, ANSWER_FEEDBACK_DELAY)
-  }
-
-  const getAnswerClassName = (
-    option,
-    index,
-  ) => {
-    if (selectedAnswer === undefined) {
-      return ''
-    }
-
-    const isSelected =
-      selectedAnswer === index
-
-    if (option.isCorrect) {
-      return 'answer-option-correct'
-    }
-
-    if (isSelected && !option.isCorrect) {
-      return 'answer-option-wrong'
-    }
-
-    return 'answer-option-disabled'
-  }
-
-  const getAnswerVisuals = (
-    option,
-    index,
-  ) => {
-    const baseColor =
-      ANSWER_COLORS[index] ||
-      ANSWER_COLORS[0]
-
-    const isSelected =
-      selectedAnswer === index
-
-    const isRevealed =
-      selectedAnswer !== undefined
-
-    if (isRevealed && option.isCorrect) {
-      return {
-        card: {
-          opacity: 1,
-          transform: 'scale(1.012)',
-          border:
-            '3px solid rgba(4, 178, 111, 0.98)',
-          borderLeft:
-            '9px solid #04b26f',
-          color: '#06412f',
-          background:
-            'linear-gradient(145deg, #f5fff9 0%, #dcfbed 100%)',
-          boxShadow:
-            '0 18px 32px rgba(2, 164, 103, 0.25), 0 0 0 4px rgba(24, 218, 145, 0.14), inset 0 1px 0 #ffffff',
-        },
-        letter: {
-          color: '#ffffff',
-          background:
-            'linear-gradient(145deg, #38e5a1 0%, #04ad6c 100%)',
-          boxShadow:
-            '0 12px 24px rgba(4, 178, 111, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
-        },
-        check: {
-          color: '#ffffff',
-          border: '0',
-          background:
-            'linear-gradient(145deg, #38e5a1, #04ad6c)',
-          boxShadow:
-            '0 8px 18px rgba(4, 178, 111, 0.34)',
-        },
-        textColor: '#063f2f',
-      }
-    }
-
-    if (
-      isRevealed &&
-      isSelected &&
-      !option.isCorrect
-    ) {
-      return {
-        card: {
-          opacity: 1,
-          transform: 'scale(1.012)',
-          border:
-            '3px solid rgba(235, 56, 86, 0.98)',
-          borderLeft:
-            '9px solid #eb3856',
-          color: '#71142a',
-          background:
-            'linear-gradient(145deg, #fff7f9 0%, #ffe1e8 100%)',
-          boxShadow:
-            '0 18px 32px rgba(224, 46, 78, 0.22), 0 0 0 4px rgba(239, 63, 95, 0.12), inset 0 1px 0 #ffffff',
-        },
-        letter: {
-          color: '#ffffff',
-          background:
-            'linear-gradient(145deg, #ff758c 0%, #e93455 100%)',
-          boxShadow:
-            '0 12px 24px rgba(235, 56, 86, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.38)',
-        },
-        check: {
-          color: '#ffffff',
-          border: '0',
-          background:
-            'linear-gradient(145deg, #ff758c, #e93455)',
-          boxShadow:
-            '0 8px 18px rgba(235, 56, 86, 0.34)',
-        },
-        textColor: '#71142a',
-      }
-    }
-
-    if (isRevealed) {
-      return {
-        card: {
-          opacity: 0.48,
-          transform: 'scale(0.992)',
-          border:
-            '2px solid rgba(116, 137, 160, 0.18)',
-          borderLeft:
-            '6px solid rgba(116, 137, 160, 0.3)',
-          background:
-            'linear-gradient(145deg, rgba(248, 250, 253, 0.9), rgba(234, 240, 247, 0.86))',
-          boxShadow:
-            '0 7px 15px rgba(20, 56, 92, 0.05)',
-          filter: 'saturate(0.45)',
-        },
-        letter: {
-          color: '#ffffff',
-          background:
-            'linear-gradient(145deg, #aebdca, #8296aa)',
-          boxShadow:
-            '0 7px 15px rgba(60, 83, 105, 0.14)',
-        },
-        check: {
-          color: '#91a1b0',
-          border:
-            '2px solid rgba(120, 142, 162, 0.32)',
-          background: 'rgba(255, 255, 255, 0.58)',
-          boxShadow: 'none',
-        },
-        textColor: '#647589',
-      }
-    }
-
-    return {
-      card: {
-        opacity: 1,
-        transform: 'scale(1)',
-        border:
-          `2px solid ${baseColor.border}`,
-        borderLeft:
-          `7px solid ${baseColor.main}`,
-        background:
-          `radial-gradient(circle at 78% 130%, ${baseColor.soft} 0%, transparent 50%), linear-gradient(145deg, #ffffff 0%, #f9fcff 100%)`,
-        boxShadow:
-          '0 12px 24px rgba(9, 54, 101, 0.09), 0 3px 9px rgba(6, 65, 111, 0.06), inset 0 1px 0 #ffffff',
-      },
-      letter: {
-        color: '#ffffff',
-        background:
-          `linear-gradient(145deg, ${baseColor.light} 0%, ${baseColor.main} 100%)`,
-        boxShadow:
-          `0 11px 22px ${baseColor.shadow}, inset 0 1px 0 rgba(255, 255, 255, 0.38)`,
-      },
-      check: {
-        color: baseColor.main,
-        border:
-          `3px solid ${baseColor.main}`,
-        background: 'rgba(255, 255, 255, 0.76)',
-        boxShadow:
-          `0 4px 12px ${baseColor.soft}`,
-      },
-      textColor: '#062653',
-    }
-  }
-
-  const selectedOption =
-    selectedAnswer !== undefined
-      ? currentQuestion.options[
-          selectedAnswer
-        ]
-      : null
-
-  const answerIsCorrect =
-    selectedOption?.isCorrect === true
 
   return (
     <main className="quiz-page">
@@ -556,7 +742,8 @@ function QuizPage() {
           className="quiz-back-button"
           aria-label="Kategorilere dön"
           disabled={
-            isAnswerLocked || isSaving
+            isAnswerLocked ||
+            isSaving
           }
           onClick={() =>
             navigate('/kategoriler')
@@ -573,61 +760,24 @@ function QuizPage() {
           </span>
 
           <strong>
-            {categoryNames[categoryId]}
+            {categoryName}
           </strong>
         </div>
 
-        <div
-          className="quiz-timer"
-          aria-label={`Geçen süre ${formatTime(
-            seconds,
-          )}`}
-        >
+        <div className="quiz-timer">
           <FiClock />
-
-          <span>{formatTime(seconds)}</span>
+          <span>{formattedTime}</span>
         </div>
       </header>
 
       <section className="quiz-container">
-        <div
-          className="quiz-progress-info"
-          style={{
-            minHeight: '30px',
-            padding: '0 4px',
-          }}
-        >
-          <span
-            style={{
-              fontWeight: 900,
-              color: '#ffffff',
-              textShadow:
-                '0 4px 12px rgba(0, 44, 94, 0.26)',
-            }}
-          >
+        <div className="quiz-progress-info">
+          <span>
             Soru {currentIndex + 1} /{' '}
             {questions.length}
           </span>
 
-          <span
-            style={{
-              minWidth: '48px',
-              padding: '6px 10px',
-              borderRadius: '999px',
-              color: '#ffffff',
-              background:
-                'rgba(3, 42, 88, 0.22)',
-              border:
-                '1px solid rgba(255, 255, 255, 0.22)',
-              boxShadow:
-                'inset 0 1px 0 rgba(255, 255, 255, 0.16)',
-              fontWeight: 900,
-              textAlign: 'center',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter:
-                'blur(10px)',
-            }}
-          >
+          <span>
             %{Math.round(progress)}
           </span>
         </div>
@@ -637,70 +787,23 @@ function QuizPage() {
           role="progressbar"
           aria-valuemin="0"
           aria-valuemax="100"
-          aria-valuenow={Math.round(progress)}
+          aria-valuenow={Math.round(
+            progress,
+          )}
           style={{
-            position: 'relative',
-            width: '100%',
             height: '18px',
             minHeight: '18px',
             padding: '3px',
             overflow: 'visible',
-            borderRadius: '999px',
-            border:
-              '1px solid rgba(255, 255, 255, 0.52)',
-            background:
-              'linear-gradient(180deg, rgba(231, 251, 255, 0.92) 0%, rgba(199, 235, 246, 0.82) 100%)',
-            boxShadow:
-              '0 7px 18px rgba(0, 53, 112, 0.15), inset 0 2px 5px rgba(4, 63, 112, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.85)',
           }}
         >
           <div
             style={{
-              position: 'relative',
               width: `${progress}%`,
               height: '100%',
               minWidth: '12px',
-              overflow: 'visible',
-              borderRadius: '999px',
-              background:
-                'linear-gradient(90deg, #9bf05d 0%, #54e576 30%, #17d394 65%, #08b99a 100%)',
-              boxShadow:
-                '0 0 15px rgba(44, 232, 147, 0.62), 0 3px 8px rgba(2, 143, 108, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.62)',
-              transition:
-                'width 360ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                overflow: 'hidden',
-                borderRadius: '999px',
-                background:
-                  'linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.16) 34%, rgba(255, 255, 255, 0.56) 49%, rgba(255, 255, 255, 0.12) 64%, transparent 100%)',
-              }}
-            />
-
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                right: '-7px',
-                width: '14px',
-                height: '14px',
-                borderRadius: '50%',
-                transform: 'translateY(-50%)',
-                border:
-                  '3px solid rgba(255, 255, 255, 0.96)',
-                background:
-                  'linear-gradient(145deg, #50e99e, #06b98c)',
-                boxShadow:
-                  '0 0 0 3px rgba(33, 222, 145, 0.22), 0 3px 9px rgba(0, 105, 82, 0.3)',
-              }}
-            />
-          </div>
+          />
         </div>
 
         <article className="question-card">
@@ -708,30 +811,18 @@ function QuizPage() {
             Soru {currentIndex + 1}
           </span>
 
-          <h1
-            style={{
-              fontWeight: 900,
-              letterSpacing: '-0.045em',
-            }}
-          >
+          <h1>
             {currentQuestion.question}
           </h1>
 
-          <div
-            className="answer-list"
-            style={{
-              gap: 'clamp(9px, 1.25vh, 14px)',
-            }}
-          >
+          <div className="answer-list">
             {currentQuestion.options.map(
               (option, index) => {
+                const answerLetter =
+                  ANSWER_LETTERS[index]
+
                 const isSelected =
                   selectedAnswer === index
-
-                const answerLetter =
-                  String.fromCharCode(
-                    65 + index,
-                  )
 
                 const visuals =
                   getAnswerVisuals(
@@ -750,16 +841,9 @@ function QuizPage() {
                     style={{
                       minHeight:
                         'clamp(68px, 9vh, 96px)',
-                      padding:
-                        'clamp(8px, 1.1vh, 12px) clamp(15px, 3.5vw, 24px)',
-                      borderRadius:
-                        'clamp(20px, 2.7vh, 27px)',
-                      gridTemplateColumns:
-                        'clamp(54px, 7vh, 70px) minmax(0, 1fr) clamp(36px, 4.7vh, 46px)',
-                      gap:
-                        'clamp(15px, 3.5vw, 24px)',
+                      fontWeight: 900,
                       transition:
-                        'transform 180ms ease, opacity 180ms ease, filter 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease',
+                        'all 180ms ease',
                       ...visuals.card,
                     }}
                     disabled={
@@ -769,23 +853,14 @@ function QuizPage() {
                     onClick={() =>
                       handleSelect(index)
                     }
-                    aria-label={`${answerLetter} seçeneği: ${option.text}`}
-                    aria-pressed={isSelected}
+                    aria-pressed={
+                      isSelected
+                    }
                   >
                     <span
                       className="answer-letter"
-                      aria-hidden="true"
                       style={{
-                        width:
-                          'clamp(54px, 7vh, 70px)',
-                        height:
-                          'clamp(54px, 7vh, 70px)',
-                        borderRadius:
-                          'clamp(17px, 2.2vh, 22px)',
-                        fontSize:
-                          'clamp(29px, 3.8vh, 40px)',
                         fontWeight: 900,
-                        flexShrink: 0,
                         ...visuals.letter,
                       }}
                     >
@@ -797,14 +872,7 @@ function QuizPage() {
                       style={{
                         color:
                           visuals.textColor,
-                        fontSize:
-                          'clamp(18px, 2.55vh, 27px)',
                         fontWeight: 900,
-                        lineHeight: 1.14,
-                        letterSpacing:
-                          '-0.032em',
-                        textShadow:
-                          '0 1px 0 rgba(255, 255, 255, 0.5)',
                       }}
                     >
                       {option.text}
@@ -812,35 +880,16 @@ function QuizPage() {
 
                     <span
                       className="answer-check"
-                      aria-hidden="true"
-                      style={{
-                        width:
-                          'clamp(36px, 4.7vh, 46px)',
-                        height:
-                          'clamp(36px, 4.7vh, 46px)',
-                        flexShrink: 0,
-                        ...visuals.check,
-                      }}
+                      style={
+                        visuals.check
+                      }
                     >
                       {selectedAnswer !==
                         undefined &&
                       option.isCorrect ? (
-                        <FiCheck
-                          style={{
-                            width: '65%',
-                            height: '65%',
-                            strokeWidth: 3.5,
-                          }}
-                        />
-                      ) : isSelected &&
-                        !option.isCorrect ? (
-                        <FiX
-                          style={{
-                            width: '65%',
-                            height: '65%',
-                            strokeWidth: 3.5,
-                          }}
-                        />
+                        <FiCheck />
+                      ) : isSelected ? (
+                        <FiX />
                       ) : null}
                     </span>
                   </button>
@@ -849,55 +898,40 @@ function QuizPage() {
             )}
           </div>
 
-          {selectedAnswer !== undefined && (
+          {selectedAnswer ===
+          undefined ? (
+            <div className="quiz-selection-hint">
+              En doğru olduğunu
+              düşündüğünüz seçeneğe
+              dokunun.
+            </div>
+          ) : (
             <div
               className={`quiz-answer-feedback ${
                 answerIsCorrect
                   ? 'correct'
                   : 'wrong'
               }`}
-              role="status"
-              aria-live="polite"
             >
               {answerIsCorrect ? (
-                <>
-                  <FiCheck />
-
-                  <div>
-                    <strong>
-                      Doğru cevap
-                    </strong>
-
-                    <span>
-                      Harika seçim. Sonraki
-                      soruya geçiliyor.
-                    </span>
-                  </div>
-                </>
+                <FiCheck />
               ) : (
-                <>
-                  <FiX />
-
-                  <div>
-                    <strong>
-                      Yanlış cevap
-                    </strong>
-
-                    <span>
-                      Doğru seçenek yeşil
-                      renkle gösterildi.
-                    </span>
-                  </div>
-                </>
+                <FiX />
               )}
-            </div>
-          )}
 
-          {selectedAnswer === undefined && (
-            <div className="quiz-selection-hint">
-              En doğru olduğunu düşündüğünüz
-              seçeneğe dokunun. Seçimin ardından
-              sonraki soruya otomatik geçilir.
+              <div>
+                <strong>
+                  {answerIsCorrect
+                    ? 'Doğru cevap'
+                    : 'Yanlış cevap'}
+                </strong>
+
+                <span>
+                  {answerIsCorrect
+                    ? 'Harika seçim. Sonraki soruya geçiliyor.'
+                    : 'Doğru seçenek yeşil renkle gösterildi.'}
+                </span>
+              </div>
             </div>
           )}
 
@@ -915,9 +949,11 @@ function QuizPage() {
         <div className="quiz-notice">
           <FiShield />
 
-          {isDemo
-            ? 'Demo sonucu mağaza sıralamasına dahil edilmez.'
-            : 'Sınav sonucu güvenli şekilde otomatik kaydedilecektir.'}
+          <span>
+            {isDemo
+              ? 'Demo sonucu mağaza sıralamasına dahil edilmez.'
+              : 'Sınav sonucu güvenli şekilde kaydedilecektir.'}
+          </span>
         </div>
       </section>
     </main>
