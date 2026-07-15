@@ -6,6 +6,7 @@ import {
   FiCheck,
   FiClock,
   FiLoader,
+  FiShield,
   FiX,
 } from 'react-icons/fi'
 import { categoryNames } from '../data/questions'
@@ -34,7 +35,8 @@ function QuizPage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [isAnswerLocked, setIsAnswerLocked] = useState(false)
+  const [isAnswerLocked, setIsAnswerLocked] =
+    useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -109,7 +111,7 @@ function QuizPage() {
 
         if (isMounted) {
           setError(
-            loadError.message ||
+            loadError?.message ||
               'Sorular yüklenemedi. Veritabanını kontrol edin.',
           )
         }
@@ -161,6 +163,22 @@ function QuizPage() {
     }
   }, [])
 
+  const formatTime = (totalSeconds) => {
+    const minutes = Math.floor(
+      totalSeconds / 60,
+    )
+
+    const remainingSeconds =
+      totalSeconds % 60
+
+    return `${String(minutes).padStart(
+      2,
+      '0',
+    )}:${String(
+      remainingSeconds,
+    ).padStart(2, '0')}`
+  }
+
   if (isLoading) {
     return (
       <main className="quiz-state-page">
@@ -168,7 +186,10 @@ function QuizPage() {
 
         <h1>Sorular hazırlanıyor</h1>
 
-        <p>Lütfen kısa bir süre bekleyin.</p>
+        <p>
+          Sınavınız güvenli şekilde hazırlanıyor.
+          Lütfen kısa bir süre bekleyin.
+        </p>
       </main>
     )
   }
@@ -203,22 +224,6 @@ function QuizPage() {
   const progress =
     ((currentIndex + 1) / questions.length) *
     100
-
-  const formatTime = (totalSeconds) => {
-    const minutes = Math.floor(
-      totalSeconds / 60,
-    )
-
-    const remainingSeconds =
-      totalSeconds % 60
-
-    return `${String(minutes).padStart(
-      2,
-      '0',
-    )}:${String(
-      remainingSeconds,
-    ).padStart(2, '0')}`
-  }
 
   const finishQuiz = async (
     completedAnswers = answers,
@@ -390,10 +395,15 @@ function QuizPage() {
           </strong>
         </div>
 
-        <div className="quiz-timer">
+        <div
+          className="quiz-timer"
+          aria-label={`Geçen süre ${formatTime(
+            seconds,
+          )}`}
+        >
           <FiClock />
 
-          {formatTime(seconds)}
+          <span>{formatTime(seconds)}</span>
         </div>
       </header>
 
@@ -409,7 +419,13 @@ function QuizPage() {
           </span>
         </div>
 
-        <div className="quiz-progress">
+        <div
+          className="quiz-progress"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={Math.round(progress)}
+        >
           <div
             style={{
               width: `${progress}%`,
@@ -432,6 +448,11 @@ function QuizPage() {
                 const isSelected =
                   selectedAnswer === index
 
+                const answerLetter =
+                  String.fromCharCode(
+                    65 + index,
+                  )
+
                 return (
                   <button
                     type="button"
@@ -447,18 +468,24 @@ function QuizPage() {
                     onClick={() =>
                       handleSelect(index)
                     }
+                    aria-label={`${answerLetter} seçeneği: ${option.text}`}
+                    aria-pressed={isSelected}
                   >
-                    <span className="answer-letter">
-                      {String.fromCharCode(
-                        65 + index,
-                      )}
+                    <span
+                      className="answer-letter"
+                      aria-hidden="true"
+                    >
+                      {answerLetter}
                     </span>
 
                     <span className="answer-text">
                       {option.text}
                     </span>
 
-                    <span className="answer-check">
+                    <span
+                      className="answer-check"
+                      aria-hidden="true"
+                    >
                       {selectedAnswer !==
                         undefined &&
                       option.isCorrect ? (
@@ -494,8 +521,8 @@ function QuizPage() {
                     </strong>
 
                     <span>
-                      Sonraki soruya
-                      geçiliyor...
+                      Harika seçim. Sonraki
+                      soruya geçiliyor.
                     </span>
                   </div>
                 </>
@@ -520,9 +547,9 @@ function QuizPage() {
 
           {selectedAnswer === undefined && (
             <div className="quiz-selection-hint">
-              Cevabınızı seçtiğinizde
-              sonraki soruya otomatik
-              geçilecektir.
+              En doğru olduğunu düşündüğünüz
+              seçeneğe dokunun. Seçimin ardından
+              sonraki soruya otomatik geçilir.
             </div>
           )}
 
@@ -538,21 +565,11 @@ function QuizPage() {
         </article>
 
         <div className="quiz-notice">
-          {isDemo ? (
-            <>
-              <FiX />
+          <FiShield />
 
-              Demo sonucu sıralamaya dahil
-              edilmez.
-            </>
-          ) : (
-            <>
-              <FiCheck />
-
-              Sınav sonucu otomatik olarak
-              kaydedilecektir.
-            </>
-          )}
+          {isDemo
+            ? 'Demo sonucu mağaza sıralamasına dahil edilmez.'
+            : 'Sınav sonucu güvenli şekilde otomatik kaydedilecektir.'}
         </div>
       </section>
     </main>
