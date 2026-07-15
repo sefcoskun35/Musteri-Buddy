@@ -1,5 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  useNavigate,
+  useParams,
+} from 'react-router-dom'
 import {
   FiAlertCircle,
   FiArrowLeft,
@@ -9,17 +17,24 @@ import {
   FiShield,
   FiX,
 } from 'react-icons/fi'
-import { categoryNames } from '../data/questions'
 import { getQuestionsByCategory } from '../services/questionService'
 import {
   hasCompletedCategory,
   saveExamResult,
 } from '../services/resultService'
-import { prepareQuiz } from '../utils/quiz'
 import '../styles/quiz.css'
 
 const ANSWER_FEEDBACK_DELAY = 1500
 const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
+
+const CATEGORY_NAMES = {
+  health: 'Health',
+  healthy: 'Health',
+  healt: 'Health',
+  'personal-care': 'Personal Care',
+  'hair-care': 'Hair Care',
+  'general-merchandise': 'General Merchandise',
+}
 
 const ANSWER_COLORS = [
   {
@@ -55,6 +70,35 @@ const ANSWER_COLORS = [
 const normalizeText = (value) =>
   String(value ?? '').trim()
 
+const shuffleArray = (items) => {
+  if (!Array.isArray(items)) {
+    return []
+  }
+
+  const shuffledItems = [...items]
+
+  for (
+    let index = shuffledItems.length - 1;
+    index > 0;
+    index -= 1
+  ) {
+    const randomIndex = Math.floor(
+      Math.random() * (index + 1),
+    )
+
+    const currentItem =
+      shuffledItems[index]
+
+    shuffledItems[index] =
+      shuffledItems[randomIndex]
+
+    shuffledItems[randomIndex] =
+      currentItem
+  }
+
+  return shuffledItems
+}
+
 const normalizeCorrectAnswer = (value) => {
   if (
     typeof value === 'number' &&
@@ -65,16 +109,20 @@ const normalizeCorrectAnswer = (value) => {
     return value
   }
 
-  const normalizedValue = normalizeText(value).toUpperCase()
+  const normalizedValue =
+    normalizeText(value).toUpperCase()
 
   const letterIndex =
-    ANSWER_LETTERS.indexOf(normalizedValue)
+    ANSWER_LETTERS.indexOf(
+      normalizedValue,
+    )
 
   if (letterIndex >= 0) {
     return letterIndex
   }
 
-  const numericValue = Number(normalizedValue)
+  const numericValue =
+    Number(normalizedValue)
 
   if (
     Number.isInteger(numericValue) &&
@@ -109,7 +157,8 @@ const normalizeQuestion = (question) => {
 
   const options = ANSWER_LETTERS.map(
     (letter, index) => {
-      const rawOption = rawOptions[index]
+      const rawOption =
+        rawOptions[index]
 
       const text =
         typeof rawOption === 'string'
@@ -124,7 +173,8 @@ const normalizeQuestion = (question) => {
         typeof rawOption?.isCorrect ===
         'boolean'
           ? rawOption.isCorrect
-          : index === correctAnswerIndex
+          : index ===
+            correctAnswerIndex
 
       return {
         text,
@@ -133,28 +183,58 @@ const normalizeQuestion = (question) => {
     },
   )
 
-  const detectedCorrectIndex =
+  let detectedCorrectIndex =
     options.findIndex(
-      (option) => option.isCorrect,
+      (option) =>
+        option.isCorrect === true,
     )
 
+  if (
+    detectedCorrectIndex < 0 &&
+    correctAnswerIndex >= 0
+  ) {
+    options.forEach(
+      (option, index) => {
+        option.isCorrect =
+          index === correctAnswerIndex
+      },
+    )
+
+    detectedCorrectIndex =
+      correctAnswerIndex
+  }
+
   return {
-    id: normalizeText(question?.id),
+    id:
+      normalizeText(question?.id) ||
+      `${Date.now()}-${Math.random()}`,
     question: normalizeText(
       question?.question,
     ),
     options,
     correctAnswer:
-      detectedCorrectIndex >= 0
-        ? detectedCorrectIndex
-        : correctAnswerIndex,
+      detectedCorrectIndex,
   }
 }
+
+const prepareQuiz = (
+  questions,
+  questionCount,
+) =>
+  shuffleArray(questions)
+    .slice(0, questionCount)
+    .map((question) => ({
+      ...question,
+      options: shuffleArray(
+        question.options,
+      ),
+    }))
 
 function QuizPage() {
   const navigate = useNavigate()
   const { categoryId } = useParams()
-  const feedbackTimerRef = useRef(null)
+  const feedbackTimerRef =
+    useRef(null)
 
   const isDemo =
     sessionStorage.getItem(
@@ -163,23 +243,29 @@ function QuizPage() {
 
   const [questions, setQuestions] =
     useState([])
-  const [currentIndex, setCurrentIndex] =
+  const [
+    currentIndex,
+    setCurrentIndex,
+  ] = useState(0)
+  const [answers, setAnswers] =
+    useState({})
+  const [seconds, setSeconds] =
     useState(0)
-  const [answers, setAnswers] = useState({})
-  const [seconds, setSeconds] = useState(0)
-
-  const [isLoading, setIsLoading] =
-    useState(true)
+  const [
+    isLoading,
+    setIsLoading,
+  ] = useState(true)
   const [isSaving, setIsSaving] =
     useState(false)
   const [
     isAnswerLocked,
     setIsAnswerLocked,
   ] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] =
+    useState('')
 
   const categoryName =
-    categoryNames[categoryId] || ''
+    CATEGORY_NAMES[categoryId] || ''
 
   useEffect(() => {
     let isMounted = true
@@ -208,7 +294,7 @@ function QuizPage() {
 
           if (alreadyCompleted) {
             throw new Error(
-              'Bu kategori sınavını daha önce tamamladınız. Yeni sınav hakkı için sistem yöneticisine başvurun.',
+              'Bu kategori sınavını daha önce tamamladınız.',
             )
           }
         }
@@ -219,48 +305,54 @@ function QuizPage() {
           )
 
         const normalizedQuestions =
-          Array.isArray(loadedQuestions)
+          Array.isArray(
+            loadedQuestions,
+          )
             ? loadedQuestions
-                .map(normalizeQuestion)
-                .filter((question) => {
-                  const hasValidQuestion =
-                    Boolean(
-                      question.id &&
+                .map(
+                  normalizeQuestion,
+                )
+                .filter(
+                  (question) => {
+                    const validOptions =
+                      question.options
+                        .length === 4 &&
+                      question.options
+                        .every(
+                          (option) =>
+                            Boolean(
+                              option.text,
+                            ),
+                        )
+
+                    const correctCount =
+                      question.options
+                        .filter(
+                          (option) =>
+                            option.isCorrect ===
+                            true,
+                        ).length
+
+                    return (
+                      Boolean(
                         question.question,
+                      ) &&
+                      validOptions &&
+                      correctCount === 1
                     )
-
-                  const hasFourOptions =
-                    question.options.length ===
-                      4 &&
-                    question.options.every(
-                      (option) =>
-                        Boolean(option.text),
-                    )
-
-                  const correctOptionCount =
-                    question.options.filter(
-                      (option) =>
-                        option.isCorrect,
-                    ).length
-
-                  return (
-                    hasValidQuestion &&
-                    hasFourOptions &&
-                    correctOptionCount === 1
-                  )
-                })
+                  },
+                )
             : []
 
-        const requiredCount = isDemo
-          ? 5
-          : 10
+        const requiredCount =
+          isDemo ? 5 : 10
 
         if (
           normalizedQuestions.length <
           requiredCount
         ) {
           throw new Error(
-            `${categoryName} kategorisinde ${normalizedQuestions.length} geçerli soru bulundu. Sınav için en az ${requiredCount} geçerli soru gerekir.`,
+            `${categoryName} kategorisinde ${normalizedQuestions.length} geçerli soru bulundu. En az ${requiredCount} soru gerekir.`,
           )
         }
 
@@ -271,10 +363,8 @@ function QuizPage() {
           )
 
         if (
-          !Array.isArray(
-            preparedQuestions,
-          ) ||
-          preparedQuestions.length === 0
+          preparedQuestions.length !==
+          requiredCount
         ) {
           throw new Error(
             'Sınav soruları hazırlanamadı.',
@@ -288,14 +378,14 @@ function QuizPage() {
         }
       } catch (loadError) {
         console.error(
-          'Quiz soruları yüklenemedi:',
+          'Quiz yükleme hatası:',
           loadError,
         )
 
         if (isMounted) {
           setError(
             loadError?.message ||
-              'Sorular yüklenemedi. Veritabanını kontrol edin.',
+              'Sorular yüklenemedi.',
           )
         }
       } finally {
@@ -346,7 +436,9 @@ function QuizPage() {
 
   useEffect(() => {
     return () => {
-      if (feedbackTimerRef.current) {
+      if (
+        feedbackTimerRef.current
+      ) {
         window.clearTimeout(
           feedbackTimerRef.current,
         )
@@ -359,7 +451,9 @@ function QuizPage() {
 
   const selectedAnswer =
     currentQuestion
-      ? answers[currentQuestion.id]
+      ? answers[
+          currentQuestion.id
+        ]
       : undefined
 
   const progress =
@@ -378,23 +472,24 @@ function QuizPage() {
       : null
 
   const answerIsCorrect =
-    selectedOption?.isCorrect === true
+    selectedOption?.isCorrect ===
+    true
 
-  const formattedTime = useMemo(() => {
-    const minutes = Math.floor(
-      seconds / 60,
-    )
+  const formattedTime =
+    useMemo(() => {
+      const minutes = Math.floor(
+        seconds / 60,
+      )
 
-    const remainingSeconds =
-      seconds % 60
+      const remainingSeconds =
+        seconds % 60
 
-    return `${String(minutes).padStart(
-      2,
-      '0',
-    )}:${String(
-      remainingSeconds,
-    ).padStart(2, '0')}`
-  }, [seconds])
+      return `${String(
+        minutes,
+      ).padStart(2, '0')}:${String(
+        remainingSeconds,
+      ).padStart(2, '0')}`
+    }, [seconds])
 
   const finishQuiz = async (
     completedAnswers,
@@ -411,14 +506,17 @@ function QuizPage() {
               question.id
             ]
 
-          const option =
+          const selectedOptionItem =
             question.options[
               selectedIndex
             ]
 
           return (
             total +
-            (option?.isCorrect ? 1 : 0)
+            (selectedOptionItem
+              ?.isCorrect
+              ? 1
+              : 0)
           )
         },
         0,
@@ -459,7 +557,7 @@ function QuizPage() {
       navigate('/sonuc')
     } catch (saveError) {
       console.error(
-        'Sınav sonucu kaydedilemedi:',
+        'Sonuç kaydetme hatası:',
         saveError,
       )
 
@@ -481,13 +579,16 @@ function QuizPage() {
       currentIndex >=
       questions.length - 1
     ) {
-      finishQuiz(updatedAnswers)
+      finishQuiz(
+        updatedAnswers,
+      )
       return
     }
 
     setCurrentIndex(
       (index) => index + 1,
     )
+
     setIsAnswerLocked(false)
   }
 
@@ -564,20 +665,18 @@ function QuizPage() {
       return {
         card: {
           opacity: 1,
-          transform:
-            'scale(1.012)',
           border:
-            '3px solid rgba(4, 178, 111, 0.98)',
+            '3px solid #04b26f',
           borderLeft:
             '9px solid #04b26f',
           background:
-            'linear-gradient(145deg, #f5fff9 0%, #dcfbed 100%)',
+            'linear-gradient(145deg, #f5fff9, #dcfbed)',
           boxShadow:
-            '0 18px 32px rgba(2, 164, 103, 0.25), 0 0 0 4px rgba(24, 218, 145, 0.14), inset 0 1px 0 #ffffff',
+            '0 18px 32px rgba(2, 164, 103, 0.25)',
         },
         letter: {
           background:
-            'linear-gradient(145deg, #38e5a1 0%, #04ad6c 100%)',
+            'linear-gradient(145deg, #38e5a1, #04ad6c)',
         },
         check: {
           color: '#ffffff',
@@ -597,20 +696,18 @@ function QuizPage() {
       return {
         card: {
           opacity: 1,
-          transform:
-            'scale(1.012)',
           border:
-            '3px solid rgba(235, 56, 86, 0.98)',
+            '3px solid #eb3856',
           borderLeft:
             '9px solid #eb3856',
           background:
-            'linear-gradient(145deg, #fff7f9 0%, #ffe1e8 100%)',
+            'linear-gradient(145deg, #fff7f9, #ffe1e8)',
           boxShadow:
-            '0 18px 32px rgba(224, 46, 78, 0.22), 0 0 0 4px rgba(239, 63, 95, 0.12), inset 0 1px 0 #ffffff',
+            '0 18px 32px rgba(224, 46, 78, 0.22)',
         },
         letter: {
           background:
-            'linear-gradient(145deg, #ff758c 0%, #e93455 100%)',
+            'linear-gradient(145deg, #ff758c, #e93455)',
         },
         check: {
           color: '#ffffff',
@@ -626,8 +723,6 @@ function QuizPage() {
       return {
         card: {
           opacity: 0.46,
-          transform:
-            'scale(0.992)',
           filter:
             'saturate(0.45)',
         },
@@ -649,15 +744,15 @@ function QuizPage() {
         borderLeft:
           `7px solid ${baseColor.main}`,
         background:
-          `radial-gradient(circle at 78% 130%, ${baseColor.soft} 0%, transparent 50%), linear-gradient(145deg, #ffffff 0%, #f9fcff 100%)`,
+          `radial-gradient(circle at 78% 130%, ${baseColor.soft}, transparent 50%), linear-gradient(145deg, #ffffff, #f9fcff)`,
         boxShadow:
-          '0 12px 24px rgba(9, 54, 101, 0.09), 0 3px 9px rgba(6, 65, 111, 0.06), inset 0 1px 0 #ffffff',
+          '0 12px 24px rgba(9, 54, 101, 0.09)',
       },
       letter: {
         background:
-          `linear-gradient(145deg, ${baseColor.light} 0%, ${baseColor.main} 100%)`,
+          `linear-gradient(145deg, ${baseColor.light}, ${baseColor.main})`,
         boxShadow:
-          `0 11px 22px ${baseColor.shadow}, inset 0 1px 0 rgba(255, 255, 255, 0.38)`,
+          `0 11px 22px ${baseColor.shadow}`,
       },
       check: {
         color: baseColor.main,
@@ -678,9 +773,8 @@ function QuizPage() {
         </h1>
 
         <p>
-          Sınavınız güvenli şekilde
-          hazırlanıyor. Lütfen kısa bir
-          süre bekleyin.
+          Lütfen kısa bir süre
+          bekleyin.
         </p>
       </main>
     )
@@ -691,7 +785,9 @@ function QuizPage() {
       <main className="quiz-state-page">
         <FiAlertCircle className="error-icon" />
 
-        <h1>Sınav açılamadı</h1>
+        <h1>
+          Sınav açılamadı
+        </h1>
 
         <p>{error}</p>
 
@@ -715,11 +811,13 @@ function QuizPage() {
       <main className="quiz-state-page">
         <FiAlertCircle className="error-icon" />
 
-        <h1>Soru bulunamadı</h1>
+        <h1>
+          Soru bulunamadı
+        </h1>
 
         <p>
-          Bu kategori için görüntülenecek
-          geçerli soru bulunamadı.
+          Bu kategori için geçerli
+          soru bulunamadı.
         </p>
 
         <button
@@ -766,7 +864,10 @@ function QuizPage() {
 
         <div className="quiz-timer">
           <FiClock />
-          <span>{formattedTime}</span>
+
+          <span>
+            {formattedTime}
+          </span>
         </div>
       </header>
 
@@ -851,7 +952,9 @@ function QuizPage() {
                       isSaving
                     }
                     onClick={() =>
-                      handleSelect(index)
+                      handleSelect(
+                        index,
+                      )
                     }
                     aria-pressed={
                       isSelected
@@ -951,7 +1054,7 @@ function QuizPage() {
 
           <span>
             {isDemo
-              ? 'Demo sonucu mağaza sıralamasına dahil edilmez.'
+              ? 'Demo sonucu sıralamaya dahil edilmez.'
               : 'Sınav sonucu güvenli şekilde kaydedilecektir.'}
           </span>
         </div>
