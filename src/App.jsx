@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import CategoryPage from './pages/CategoryPage'
+import AchievementsPage from './pages/AchievementsPage'
 import QuizPage from './pages/QuizPage'
 import ResultPage from './pages/ResultPage'
 import AdminLoginPage from './pages/AdminLoginPage'
@@ -22,11 +23,19 @@ function App() {
       />
 
       <Route
+        path="/basarilar"
+        element={<AchievementsPage />}
+      />
+
+      <Route
         path="/quiz/:categoryId"
         element={<QuizPage />}
       />
 
-      <Route path="/sonuc" element={<ResultPage />} />
+      <Route
+        path="/sonuc"
+        element={<ResultPage />}
+      />
 
       <Route
         path="/yonetici"
@@ -38,30 +47,31 @@ function App() {
         element={<QuestionManagementPage />}
       />
 
-<Route
-  path="/yonetim/dashboard"
-  element={<DashboardPage />}
-/>
+      <Route
+        path="/yonetim/dashboard"
+        element={<DashboardPage />}
+      />
 
-<Route
-  path="/yonetim/kullanicilar"
-  element={<UserManagementPage />}
-/>
+      <Route
+        path="/yonetim/kullanicilar"
+        element={<UserManagementPage />}
+      />
 
-<Route
-  path="/yonetim/sonuclar"
-  element={<AdminResultsPage />}
-/>
+      <Route
+        path="/yonetim/sonuclar"
+        element={<AdminResultsPage />}
+      />
 
-<Route
-  path="/yonetim/siralama"
-  element={<StoreRankingPage />}
-/>
+      <Route
+        path="/yonetim/siralama"
+        element={<StoreRankingPage />}
+      />
 
-<Route
-  path="/yonetim"
-  element={<AdminDashboardPage />}
-/>
+      <Route
+        path="/yonetim"
+        element={<AdminDashboardPage />}
+      />
+
       <Route
         path="*"
         element={<Navigate to="/" replace />}

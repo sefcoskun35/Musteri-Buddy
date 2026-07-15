@@ -1290,6 +1290,7 @@ function CategoryPage() {
               type="button"
               className="category-nav-item active"
               onClick={() => navigate('/kategoriler')}
+              aria-current="page"
             >
               <FiHome />
               <span>Ana Sayfa</span>
@@ -1298,7 +1299,7 @@ function CategoryPage() {
             <button
               type="button"
               className="category-nav-item"
-              onClick={() => navigate('/kategoriler')}
+              onClick={() => navigate('/basarilar')}
             >
               <FiAward />
               <span>Başarılar</span>
