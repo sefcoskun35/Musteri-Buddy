@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AdminSidebar from '../components/AdminSidebar'
 import {
   FiAlertCircle,
   FiAward,
@@ -320,76 +321,7 @@ function UserManagementPage() {
       <style>{styles}</style>
 
       <main className="user-management-page">
-        <aside className="user-sidebar">
-          <div className="user-sidebar-brand">
-            <span>MB</span>
-
-            <div>
-              <strong>Müşteri Buddy</strong>
-              <small>Yönetim Paneli</small>
-            </div>
-          </div>
-
-          <nav>
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/dashboard')}
-            >
-              <FiGrid />
-              Dashboard
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/sorular')}
-            >
-              <FiHelpCircle />
-              Soru Yönetimi
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim')}
-            >
-              <FiUploadCloud />
-              Excel ile Soru Yükle
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/sonuclar')}
-            >
-              <FiFileText />
-              Sınav Sonuçları
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/siralama')}
-            >
-              <FiAward />
-              Mağaza Sıralaması
-            </button>
-
-            <button
-  type="button"
-  className="active"
-  onClick={() => navigate('/yonetim/kullanicilar')}
->
-  <FiUsers />
-  Kullanıcı Yönetimi
-</button>
-          </nav>
-
-          <button
-            type="button"
-            className="user-logout-button"
-            onClick={handleLogout}
-          >
-            <FiLogOut />
-            Çıkış Yap
-          </button>
-        </aside>
+<AdminSidebar />
 
         <section className="user-content">
           <header className="user-page-header">
@@ -863,8 +795,7 @@ const styles = `
 
   .user-management-page {
     min-height: 100vh;
-    display: grid;
-    grid-template-columns: 260px minmax(0, 1fr);
+    display: flex;
     background: var(--user-background);
     color: var(--user-text);
     font-family:
