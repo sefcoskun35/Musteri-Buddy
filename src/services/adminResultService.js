@@ -12,8 +12,8 @@ import {
 import { db } from './firebase'
 
 const RESULTS_COLLECTION = 'results'
-const DEFAULT_PAGE_SIZE = 25
-const MAX_PAGE_SIZE = 100
+const DEFAULT_PAGE_SIZE = 50
+const MAX_PAGE_SIZE = 250
 
 const normalizeText = (value) =>
   String(value ?? '').trim()
@@ -46,15 +46,8 @@ const buildResultsQuery = ({
   lastDocument = null,
   storeCode = '',
   categoryName = '',
-  activeOnly = true,
 } = {}) => {
   const constraints = []
-
-  if (activeOnly) {
-    constraints.push(
-      where('active', '!=', false),
-    )
-  }
 
   if (normalizeText(storeCode)) {
     constraints.push(
@@ -114,15 +107,23 @@ export async function getResultsPage({
       lastDocument,
       storeCode,
       categoryName,
-      activeOnly,
     })
 
   const snapshot =
     await getDocs(resultsQuery)
 
-  const items = snapshot.docs.map(
-    mapResultDocument,
-  )
+  const allItems =
+    snapshot.docs.map(
+      mapResultDocument,
+    )
+
+  const items = activeOnly
+    ? allItems.filter(
+        (item) =>
+          item.active !== false &&
+          item.isDemo !== true,
+      )
+    : allItems
 
   return {
     items,
@@ -137,22 +138,30 @@ export async function getResultsPage({
 }
 
 export async function getAllResults({
-  batchSize = 100,
+  batchSize = 250,
   storeCode = '',
   categoryName = '',
   activeOnly = true,
-  maximumResults = 5000,
+  maximumResults = 10000,
 } = {}) {
   const safeBatchSize =
     normalizePageSize(batchSize)
 
+  const parsedMaximumResults =
+    Number(maximumResults)
+
   const safeMaximumResults =
-    Math.max(
-      safeBatchSize,
-      Number(
-        maximumResults,
-      ) || 5000,
-    )
+    Number.isFinite(
+      parsedMaximumResults,
+    ) &&
+    parsedMaximumResults > 0
+      ? Math.max(
+          safeBatchSize,
+          Math.floor(
+            parsedMaximumResults,
+          ),
+        )
+      : 10000
 
   const allResults = []
   let lastDocument = null
