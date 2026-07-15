@@ -14,44 +14,56 @@ const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
 
 const CATEGORY_CONFIG = {
   health: {
-    canonicalName: 'Health',
+    name: 'Health',
     aliases: [
       'Health',
-      'Healthy',
-      'Healt',
+      'HEALTH',
       'health',
+      'Healthy',
+      'HEALTHY',
       'healthy',
+      'Healt',
+      'HEALT',
       'healt',
     ],
   },
   'personal care': {
-    canonicalName: 'Personal Care',
+    name: 'Personal Care',
     aliases: [
       'Personal Care',
+      'PERSONAL CARE',
       'personal care',
       'PersonalCare',
+      'PERSONALCARE',
       'personalcare',
-      'personal-care',
+      'Personel Care',
+      'PERSONEL CARE',
+      'personel care',
+      'PersonelCare',
+      'PERSONELCARE',
+      'personelcare',
     ],
   },
   'hair care': {
-    canonicalName: 'Hair Care',
+    name: 'Hair Care',
     aliases: [
       'Hair Care',
+      'HAIR CARE',
       'hair care',
       'HairCare',
+      'HAIRCARE',
       'haircare',
-      'hair-care',
     ],
   },
   'general merchandise': {
-    canonicalName: 'General Merchandise',
+    name: 'General Merchandise',
     aliases: [
       'General Merchandise',
+      'GENERAL MERCHANDISE',
       'general merchandise',
       'GeneralMerchandise',
+      'GENERALMERCHANDISE',
       'generalmerchandise',
-      'general-merchandise',
     ],
   },
 }
@@ -73,6 +85,8 @@ const normalizeCategory = (value) => {
 
     'personal care': 'personal care',
     personalcare: 'personal care',
+    'personel care': 'personal care',
+    personelcare: 'personal care',
 
     'hair care': 'hair care',
     haircare: 'hair care',
@@ -83,22 +97,16 @@ const normalizeCategory = (value) => {
       'general merchandise',
   }
 
-  return (
-    aliases[normalizedValue] ||
-    normalizedValue
-  )
+  return aliases[normalizedValue] || normalizedValue
 }
 
 const getCategoryConfig = (value) => {
-  const normalizedCategory =
+  const categoryKey =
     normalizeCategory(value)
 
   return (
-    CATEGORY_CONFIG[
-      normalizedCategory
-    ] || {
-      canonicalName:
-        normalizeText(value),
+    CATEGORY_CONFIG[categoryKey] || {
+      name: normalizeText(value),
       aliases: [
         normalizeText(value),
       ].filter(Boolean),
@@ -106,19 +114,23 @@ const getCategoryConfig = (value) => {
   )
 }
 
-const getCanonicalCategoryName = (
-  value,
-) =>
-  getCategoryConfig(value)
-    .canonicalName
+const normalizeCorrectAnswer = (value) => {
+  if (
+    typeof value === 'number' &&
+    Number.isInteger(value)
+  ) {
+    if (value >= 0 && value <= 3) {
+      return ANSWER_LETTERS[value]
+    }
 
-const normalizeCorrectAnswer = (
-  value,
-) => {
-  const normalizedValue =
-    normalizeText(value)
-      .toUpperCase()
-      .replace(/\s+/g, '')
+    if (value >= 1 && value <= 4) {
+      return ANSWER_LETTERS[value - 1]
+    }
+  }
+
+  const normalizedValue = normalizeText(value)
+    .toUpperCase()
+    .replace(/\s+/g, '')
 
   if (
     ANSWER_LETTERS.includes(
@@ -132,21 +144,15 @@ const normalizeCorrectAnswer = (
     Number(normalizedValue)
 
   if (
-    Number.isInteger(
-      numericValue,
-    ) &&
+    Number.isInteger(numericValue) &&
     numericValue >= 0 &&
     numericValue <= 3
   ) {
-    return ANSWER_LETTERS[
-      numericValue
-    ]
+    return ANSWER_LETTERS[numericValue]
   }
 
   if (
-    Number.isInteger(
-      numericValue,
-    ) &&
+    Number.isInteger(numericValue) &&
     numericValue >= 1 &&
     numericValue <= 4
   ) {
@@ -158,48 +164,65 @@ const normalizeCorrectAnswer = (
   return ''
 }
 
+const getOptionText = (option) => {
+  if (
+    option &&
+    typeof option === 'object' &&
+    !Array.isArray(option)
+  ) {
+    return normalizeText(
+      option.text ??
+        option.label ??
+        option.value,
+    )
+  }
+
+  return normalizeText(option)
+}
+
 const normalizeOptions = (
-  options,
+  data,
   correctAnswer,
 ) => {
-  const normalizedCorrectAnswer =
-    normalizeCorrectAnswer(
+  let sourceOptions =
+    Array.isArray(data.options)
+      ? data.options
+      : []
+
+  if (sourceOptions.length < 4) {
+    sourceOptions = [
+      data.secenek_a,
+      data.secenek_b,
+      data.secenek_c,
+      data.secenek_d,
+    ]
+  }
+
+  const correctIndex =
+    ANSWER_LETTERS.indexOf(
       correctAnswer,
     )
 
-  const sourceOptions =
-    Array.isArray(options)
-      ? options
-      : []
-
   return ANSWER_LETTERS.map(
-    (letter, index) => {
+    (_, index) => {
       const sourceOption =
         sourceOptions[index]
 
-      const text =
+      const objectIsCorrect =
+        sourceOption &&
         typeof sourceOption ===
-        'string'
-          ? normalizeText(
-              sourceOption,
-            )
-          : normalizeText(
-              sourceOption?.text ??
-                sourceOption?.label ??
-                sourceOption?.value,
-            )
-
-      const isCorrect =
-        typeof sourceOption
-          ?.isCorrect ===
-        'boolean'
-          ? sourceOption.isCorrect
-          : letter ===
-            normalizedCorrectAnswer
+          'object' &&
+        sourceOption.isCorrect === true
 
       return {
-        text,
-        isCorrect,
+        text:
+          getOptionText(
+            sourceOption,
+          ),
+        isCorrect:
+          correctIndex >= 0
+            ? index === correctIndex
+            : objectIsCorrect,
       }
     },
   )
@@ -213,21 +236,30 @@ const normalizeQuestionDocument = (
 
   const correctAnswer =
     normalizeCorrectAnswer(
-      data.correctAnswer,
+      data.correctAnswer ??
+        data.dogru_secenek,
     )
 
   return {
     id: documentSnapshot.id,
     ...data,
     category: normalizeText(
-      data.category,
+      data.category ??
+        data.kategori,
     ),
+    categoryKey:
+      normalizeCategory(
+        data.categoryKey ??
+          data.category ??
+          data.kategori,
+      ),
     question: normalizeText(
-      data.question,
+      data.question ??
+        data.soru,
     ),
     correctAnswer,
     options: normalizeOptions(
-      data.options,
+      data,
       correctAnswer,
     ),
   }
@@ -235,46 +267,57 @@ const normalizeQuestionDocument = (
 
 const isValidQuestion = (
   question,
-  requestedCategory,
+  requestedCategoryKey,
 ) => {
-  const questionCategory =
-    normalizeCategory(
-      question.category,
-    )
-
-  const hasValidOptions =
-    Array.isArray(
-      question.options,
-    ) &&
-    question.options.length ===
-      4 &&
-    question.options.every(
-      (option) =>
-        Boolean(
-          normalizeText(
-            option.text,
-          ),
-        ),
-    )
+  const options =
+    Array.isArray(question.options)
+      ? question.options
+      : []
 
   const correctOptionCount =
-    question.options.filter(
+    options.filter(
       (option) =>
         option.isCorrect === true,
     ).length
 
   return (
     question.active !== false &&
-    questionCategory ===
-      requestedCategory &&
-    Boolean(
-      normalizeText(
-        question.question,
-      ),
+    question.categoryKey ===
+      requestedCategoryKey &&
+    Boolean(question.question) &&
+    options.length === 4 &&
+    options.every(
+      (option) =>
+        Boolean(
+          normalizeText(
+            option.text,
+          ),
+        ),
     ) &&
-    hasValidOptions &&
     correctOptionCount === 1
   )
+}
+
+const mergeSnapshots = (
+  snapshots,
+) => {
+  const documentMap =
+    new Map()
+
+  snapshots.forEach(
+    (snapshot) => {
+      snapshot?.docs?.forEach(
+        (documentSnapshot) => {
+          documentMap.set(
+            documentSnapshot.id,
+            documentSnapshot,
+          )
+        },
+      )
+    },
+  )
+
+  return [...documentMap.values()]
 }
 
 export async function uploadQuestions(
@@ -356,17 +399,24 @@ export async function uploadQuestions(
       writeBatch(db)
 
     chunk.forEach((row) => {
-      const questionRef = doc(
-        collection(
-          db,
-          QUESTIONS_COLLECTION,
-        ),
-      )
+      const questionReference =
+        doc(
+          collection(
+            db,
+            QUESTIONS_COLLECTION,
+          ),
+        )
 
-      const category =
-        getCanonicalCategoryName(
+      const categoryConfig =
+        getCategoryConfig(
           row.kategori,
         )
+
+      const category =
+        categoryConfig.name
+
+      const categoryKey =
+        normalizeCategory(category)
 
       const correctAnswer =
         normalizeCorrectAnswer(
@@ -388,34 +438,38 @@ export async function uploadQuestions(
         ),
       ]
 
-      batch.set(questionRef, {
-        category,
-        categoryKey:
-          normalizeCategory(
-            category,
-          ),
-        question:
-          normalizeText(row.soru),
-        options:
-          optionTexts.map(
-            (text, index) => ({
-              text,
-              isCorrect:
-                ANSWER_LETTERS[
-                  index
-                ] ===
-                correctAnswer,
-            }),
-          ),
-        correctAnswer,
-        explanation:
-          normalizeText(
-            row.aciklama,
-          ),
-        active: true,
-        createdAt:
-          serverTimestamp(),
-      })
+      batch.set(
+        questionReference,
+        {
+          category,
+          categoryKey,
+          question:
+            normalizeText(
+              row.soru,
+            ),
+          options:
+            optionTexts.map(
+              (text, index) => ({
+                text,
+                isCorrect:
+                  ANSWER_LETTERS[
+                    index
+                  ] ===
+                  correctAnswer,
+              }),
+            ),
+          correctAnswer,
+          explanation:
+            normalizeText(
+              row.aciklama,
+            ),
+          active: true,
+          createdAt:
+            serverTimestamp(),
+          updatedAt:
+            serverTimestamp(),
+        },
+      )
     })
 
     await batch.commit()
@@ -430,13 +484,41 @@ export async function uploadQuestions(
 export async function getQuestionsByCategory(
   category,
 ) {
-  const requestedCategory =
+  const requestedCategoryKey =
     normalizeCategory(category)
 
   const categoryConfig =
     getCategoryConfig(category)
 
-  const uniqueAliases = [
+  const snapshots = []
+
+  try {
+    const categoryKeySnapshot =
+      await getDocs(
+        query(
+          collection(
+            db,
+            QUESTIONS_COLLECTION,
+          ),
+          where(
+            'categoryKey',
+            '==',
+            requestedCategoryKey,
+          ),
+        ),
+      )
+
+    snapshots.push(
+      categoryKeySnapshot,
+    )
+  } catch (error) {
+    console.warn(
+      'categoryKey sorgusu çalışmadı:',
+      error,
+    )
+  }
+
+  const categoryAliases = [
     ...new Set(
       categoryConfig.aliases
         .map(normalizeText)
@@ -444,51 +526,45 @@ export async function getQuestionsByCategory(
     ),
   ].slice(0, 30)
 
-  let snapshot
+  if (categoryAliases.length > 0) {
+    try {
+      const categorySnapshot =
+        await getDocs(
+          query(
+            collection(
+              db,
+              QUESTIONS_COLLECTION,
+            ),
+            where(
+              'category',
+              'in',
+              categoryAliases,
+            ),
+          ),
+        )
 
-  try {
-    snapshot = await getDocs(
-      query(
-        collection(
-          db,
-          QUESTIONS_COLLECTION,
-        ),
-        where(
-          'category',
-          'in',
-          uniqueAliases,
-        ),
-      ),
-    )
-  } catch (queryError) {
-    console.warn(
-      'Kategori sorgusu çalışmadı, categoryKey sorgusu deneniyor:',
-      queryError,
-    )
-
-    snapshot = await getDocs(
-      query(
-        collection(
-          db,
-          QUESTIONS_COLLECTION,
-        ),
-        where(
-          'categoryKey',
-          '==',
-          requestedCategory,
-        ),
-      ),
-    )
+      snapshots.push(
+        categorySnapshot,
+      )
+    } catch (error) {
+      console.warn(
+        'Eski kategori sorgusu çalışmadı:',
+        error,
+      )
+    }
   }
 
-  return snapshot.docs
+  const documents =
+    mergeSnapshots(snapshots)
+
+  return documents
     .map(
       normalizeQuestionDocument,
     )
     .filter((question) =>
       isValidQuestion(
         question,
-        requestedCategory,
+        requestedCategoryKey,
       ),
     )
 }
