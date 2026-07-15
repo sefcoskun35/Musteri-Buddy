@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import CategoryPage from './pages/CategoryPage'
 import AchievementsPage from './pages/AchievementsPage'
+import StatisticsPage from './pages/StatisticsPage'
+import ProfilePage from './pages/ProfilePage'
 import QuizPage from './pages/QuizPage'
 import ResultPage from './pages/ResultPage'
 import AdminLoginPage from './pages/AdminLoginPage'
@@ -25,6 +27,16 @@ function App() {
       <Route
         path="/basarilar"
         element={<AchievementsPage />}
+      />
+
+      <Route
+        path="/istatistikler"
+        element={<StatisticsPage />}
+      />
+
+      <Route
+        path="/profil"
+        element={<ProfilePage />}
       />
 
       <Route

@@ -1317,7 +1317,7 @@ function CategoryPage() {
             <button
               type="button"
               className="category-nav-item"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/profil')}
             >
               <FiUser />
               <span>Profil</span>

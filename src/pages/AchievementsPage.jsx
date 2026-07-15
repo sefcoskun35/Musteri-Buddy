@@ -1016,7 +1016,7 @@ function AchievementsPage() {
             <button
               type="button"
               className="achievements-header-button"
-              onClick={() => navigate('/')}
+             onClick={() => navigate('/profil')}
               aria-label="Katılımcı profili"
             >
               <FiUser />
@@ -1148,7 +1148,7 @@ function AchievementsPage() {
             <button
               type="button"
               className="achievements-nav-item"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/profil')}
             >
               <FiUser />
               <span>Profil</span>
