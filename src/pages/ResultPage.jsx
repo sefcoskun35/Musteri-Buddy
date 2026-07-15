@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FiAward,
@@ -5,89 +6,142 @@ import {
   FiClock,
   FiHome,
   FiRefreshCw,
+  FiTrendingUp,
   FiXCircle,
 } from 'react-icons/fi'
 import '../styles/result.css'
 
+const PASS_SCORE = 70
+
 function ResultPage() {
   const navigate = useNavigate()
+
   const result = JSON.parse(
     sessionStorage.getItem('musteriBuddyResult') || 'null',
   )
 
-  if (!result) {
-    navigate('/', { replace: true })
-    return null
-  }
+  useEffect(() => {
+    if (!result) {
+      navigate('/', { replace: true })
+    }
+  }, [navigate, result])
 
-  const passed = result.score >= 70
+  if (!result) return null
 
-  const formatTime = (totalSeconds) => {
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
+  const score = Number(result.score || 0)
+  const passed = score >= PASS_SCORE
+  const percentage = Math.max(0, Math.min(score, 100))
 
-    return `${minutes} dk ${seconds} sn`
-  }
+  const formatTime = (seconds) => {
+    const minute = Math.floor(Number(seconds || 0) / 60)
+    const second = Number(seconds || 0) % 60
 
-  const goCategories = () => {
-    navigate('/kategoriler')
-  }
-
-  const restartDemo = () => {
-    if (!result.isDemo) return
-    navigate(`/quiz/${result.categoryId}`)
+    return `${minute} dk ${second
+      .toString()
+      .padStart(2, '0')} sn`
   }
 
   return (
     <main className="result-page">
-      <section className="result-card">
+      <section className="result-card premium-card">
+
+        <div
+          className={`result-badge ${
+            passed ? 'success' : 'fail'
+          }`}
+        >
+          {passed ? 'GEÇTİNİZ' : 'KALDINIZ'}
+        </div>
+
         <div
           className={`result-icon ${
-            passed ? 'result-icon-success' : 'result-icon-fail'
+            passed
+              ? 'result-icon-success'
+              : 'result-icon-fail'
           }`}
         >
           {passed ? <FiAward /> : <FiXCircle />}
         </div>
 
-        <span className="result-eyebrow">
-          {result.isDemo ? 'Demo tamamlandı' : 'Sınav tamamlandı'}
+        <span className="result-category">
+          {result.categoryName}
         </span>
 
-        <h1>{passed ? 'Tebrikler!' : 'Gelişime devam'}</h1>
-
-        <p>
+        <h1>
           {passed
-            ? `${result.categoryName} kategorisinde başarılı oldunuz.`
-            : `${result.categoryName} kategorisinde geçme puanına ulaşamadınız.`}
+            ? 'Harika Bir İş Çıkardınız!'
+            : 'Biraz Daha Çalışabilirsiniz'}
+        </h1>
+
+        <p className="result-description">
+          {passed
+            ? 'Bu kategoride başarıyla geçtiniz. Tebrik ederiz.'
+            : 'Geçme puanına ulaşamadınız. Biraz daha çalışarak tekrar deneyebilirsiniz.'}
         </p>
 
-        <div className="score-circle">
-          <strong>{result.score}</strong>
-          <span>puan</span>
+        <div
+          className="premium-score-circle"
+          style={{
+            '--progress': `${percentage}%`,
+          }}
+        >
+          <div className="premium-score-inner">
+            <strong>{score}</strong>
+            <span>PUAN</span>
+          </div>
         </div>
 
-        <div className="result-stats">
-          <div>
+        <div className="result-progress-info">
+          <span>Geçme Puanı</span>
+
+          <strong>{PASS_SCORE}</strong>
+        </div>
+
+        <div className="premium-stats">
+
+          <div className="stat-card success">
             <FiCheckCircle />
             <strong>{result.correctCount}</strong>
             <span>Doğru</span>
           </div>
 
-          <div>
+          <div className="stat-card danger">
             <FiXCircle />
             <strong>{result.wrongCount}</strong>
             <span>Yanlış</span>
           </div>
 
-          <div>
+          <div className="stat-card info">
             <FiClock />
-            <strong>{formatTime(result.duration)}</strong>
+            <strong>
+              {formatTime(result.duration)}
+            </strong>
             <span>Süre</span>
+          </div>
+
+        </div>
+
+        <div className="performance-card">
+          <FiTrendingUp />
+
+          <div>
+            <span>Başarı Durumu</span>
+
+            <strong>
+              %{percentage}
+            </strong>
           </div>
         </div>
 
         <div className="result-actions">
-          <button type="button" className="result-primary" onClick={goCategories}>
+
+          <button
+            type="button"
+            className="result-primary"
+            onClick={() =>
+              navigate('/kategoriler')
+            }
+          >
             <FiHome />
             Kategorilere Dön
           </button>
@@ -96,17 +150,23 @@ function ResultPage() {
             <button
               type="button"
               className="result-secondary"
-              onClick={restartDemo}
+              onClick={() =>
+                navigate(
+                  `/quiz/${result.categoryId}`,
+                )
+              }
             >
               <FiRefreshCw />
               Tekrar Dene
             </button>
           )}
+
         </div>
 
         {!result.isDemo && (
           <div className="result-info">
-            Gerçek sınav sonucu kayıt aşamasında sisteme gönderilecektir.
+            Sonucunuz başarıyla sisteme
+            kaydedildi.
           </div>
         )}
       </section>
