@@ -1,8 +1,13 @@
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   runTransaction,
   serverTimestamp,
+  setDoc,
+  where,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { createUserId } from './userService'
@@ -113,6 +118,59 @@ const normalizePositiveNumber = (
     Number(value || 0),
   )
 
+const legacyResultExists = async ({
+  userId,
+  fullName,
+  storeCode,
+  categoryId,
+}) => {
+  try {
+    const snapshot = await getDocs(
+      query(
+        collection(
+          db,
+          RESULTS_COLLECTION,
+        ),
+        where(
+          'storeCode',
+          '==',
+          storeCode,
+        ),
+      ),
+    )
+
+    return snapshot.docs.some(
+      (resultDocument) => {
+        const data =
+          resultDocument.data()
+
+        const sameUser =
+          cleanText(data.userId) ===
+            userId ||
+          normalizeText(
+            data.fullName,
+          ) ===
+            normalizeText(fullName)
+
+        return (
+          data.active !== false &&
+          sameUser &&
+          cleanText(
+            data.categoryId,
+          ) === categoryId
+        )
+      },
+    )
+  } catch (error) {
+    console.warn(
+      'Eski sonuç kontrolü yapılamadı:',
+      error,
+    )
+
+    return false
+  }
+}
+
 export async function hasCompletedCategory(
   categoryId,
 ) {
@@ -151,27 +209,39 @@ export async function hasCompletedCategory(
       normalizedCategoryId,
     )
 
-  if (!resultId) {
-    return false
+  if (resultId) {
+    try {
+      const resultSnapshot =
+        await getDoc(
+          doc(
+            db,
+            RESULTS_COLLECTION,
+            resultId,
+          ),
+        )
+
+      if (
+        resultSnapshot.exists() &&
+        resultSnapshot.data()
+          ?.active !== false
+      ) {
+        return true
+      }
+    } catch (error) {
+      console.warn(
+        'Sonuç belgesi kontrol edilemedi:',
+        error,
+      )
+    }
   }
 
-  const resultSnapshot =
-    await getDoc(
-      doc(
-        db,
-        RESULTS_COLLECTION,
-        resultId,
-      ),
-    )
-
-  if (!resultSnapshot.exists()) {
-    return false
-  }
-
-  return (
-    resultSnapshot.data()
-      ?.active !== false
-  )
+  return legacyResultExists({
+    userId,
+    fullName,
+    storeCode,
+    categoryId:
+      normalizedCategoryId,
+  })
 }
 
 export async function saveExamResult(
@@ -263,10 +333,7 @@ export async function saveExamResult(
       userId,
     )
 
-  if (
-    !resultId ||
-    !leaderboardId
-  ) {
+  if (!resultId) {
     throw new Error(
       'Sonuç kimliği oluşturulamadı.',
     )
@@ -284,27 +351,46 @@ export async function saveExamResult(
     resultId,
   )
 
-  const leaderboardReference =
-    doc(
-      db,
-      LEADERBOARDS_COLLECTION,
-      leaderboardId,
-    )
+  const resultData = {
+    userId,
+    fullName,
+    normalizedFullName,
+    storeCode,
+    storeName,
+
+    categoryId,
+    categoryName,
+
+    correctCount,
+    wrongCount,
+    totalQuestions,
+    score: numericScore,
+    duration,
+
+    passed,
+    passingScore:
+      PASSING_SCORE,
+
+    attemptNumber: 1,
+    active: true,
+    completedAt:
+      serverTimestamp(),
+    updatedAt:
+      serverTimestamp(),
+  }
 
   await runTransaction(
     db,
     async (transaction) => {
-      const [
-        userSnapshot,
-        resultSnapshot,
-      ] = await Promise.all([
-        transaction.get(
+      const userSnapshot =
+        await transaction.get(
           userReference,
-        ),
-        transaction.get(
+        )
+
+      const resultSnapshot =
+        await transaction.get(
           resultReference,
-        ),
-      ])
+        )
 
       if (
         resultSnapshot.exists() &&
@@ -460,68 +546,36 @@ export async function saveExamResult(
         )
       }
 
-      const resultData = {
-        userId,
-        fullName,
-        normalizedFullName,
-        storeCode,
-        storeName,
-
-        categoryId,
-        categoryName,
-
-        correctCount,
-        wrongCount,
-        totalQuestions,
-        score: numericScore,
-        duration,
-        passed,
-        passingScore:
-          PASSING_SCORE,
-
-        attemptNumber: 1,
-        active: true,
-        completedAt:
-          serverTimestamp(),
-        updatedAt:
-          serverTimestamp(),
-      }
-
       transaction.set(
         resultReference,
         resultData,
       )
-
-      transaction.set(
-        leaderboardReference,
-        {
-          resultId,
-          userId,
-          fullName,
-          normalizedFullName,
-          storeCode,
-          storeName,
-
-          categoryId,
-          categoryName,
-
-          score: numericScore,
-          duration,
-          correctCount,
-          wrongCount,
-          totalQuestions,
-
-          passed,
-          active: true,
-
-          completedAt:
-            serverTimestamp(),
-          updatedAt:
-            serverTimestamp(),
-        },
-      )
     },
   )
+
+  if (leaderboardId) {
+    try {
+      await setDoc(
+        doc(
+          db,
+          LEADERBOARDS_COLLECTION,
+          leaderboardId,
+        ),
+        {
+          resultId,
+          ...resultData,
+        },
+        {
+          merge: true,
+        },
+      )
+    } catch (leaderboardError) {
+      console.warn(
+        'Sıralama kaydı oluşturulamadı ancak sınav sonucu kaydedildi:',
+        leaderboardError,
+      )
+    }
+  }
 
   return resultId
 }
