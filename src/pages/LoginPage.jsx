@@ -47,13 +47,26 @@ function LoginPage() {
 
   const validate = () => {
     const nextErrors = {}
+    const normalizedFullName = form.fullName
+      .trim()
+      .replace(/\s+/g, ' ')
 
-    if (form.fullName.trim().length < 3) {
-      nextErrors.fullName = 'Ad ve soyad bilgisi giriniz.'
+    const fullNameParts = normalizedFullName
+      .split(' ')
+      .filter(Boolean)
+
+    const hasValidFirstAndLastName =
+      fullNameParts.length >= 2 &&
+      fullNameParts.every((part) => part.length >= 2)
+
+    if (!hasValidFirstAndLastName) {
+      nextErrors.fullName =
+        'Adınızı ve soyadınızı eksiksiz giriniz.'
     }
 
     if (!/^\d{3}$/.test(form.storeCode)) {
-      nextErrors.storeCode = 'Mağaza kodu 3 haneli olmalıdır.'
+      nextErrors.storeCode =
+        'Mağaza kodu 3 haneli olmalıdır.'
     }
 
     if (form.storeName.trim().length < 2) {
@@ -70,14 +83,23 @@ function LoginPage() {
 
     if (!validate()) return
 
-    sessionStorage.setItem('musteriBuddyMode', 'official')
+    const normalizedFullName = form.fullName
+      .trim()
+      .replace(/\s+/g, ' ')
+
+    sessionStorage.setItem(
+      'musteriBuddyMode',
+      'official',
+    )
 
     sessionStorage.setItem(
       'musteriBuddyParticipant',
       JSON.stringify({
-        fullName: form.fullName.trim(),
+        fullName: normalizedFullName,
         storeCode: form.storeCode,
-        storeName: form.storeName.trim(),
+        storeName: form.storeName
+          .trim()
+          .replace(/\s+/g, ' '),
       }),
     )
 
@@ -85,19 +107,36 @@ function LoginPage() {
   }
 
   const startDemo = () => {
-    sessionStorage.setItem('musteriBuddyMode', 'demo')
-    sessionStorage.removeItem('musteriBuddyParticipant')
+    sessionStorage.setItem(
+      'musteriBuddyMode',
+      'demo',
+    )
+
+    sessionStorage.removeItem(
+      'musteriBuddyParticipant',
+    )
+
     navigate('/kategoriler')
   }
 
   return (
     <main className="auth-page">
-      <div className="auth-background auth-background-one" aria-hidden="true" />
-      <div className="auth-background auth-background-two" aria-hidden="true" />
+      <div
+        className="auth-background auth-background-one"
+        aria-hidden="true"
+      />
+
+      <div
+        className="auth-background auth-background-two"
+        aria-hidden="true"
+      />
 
       <section className="auth-shell">
         <div className="auth-intro">
-          <div className="brand-mark" aria-hidden="true">
+          <div
+            className="brand-mark"
+            aria-hidden="true"
+          >
             <FiUsers />
           </div>
 
@@ -112,11 +151,15 @@ function LoginPage() {
           </h1>
 
           <p>
-            Kategori bilginizi ölçün, gelişiminizi takip edin ve mağazanızdaki
-            sıralamanızı görün.
+            Kategori bilginizi ölçün, gelişiminizi
+            takip edin ve mağazanızdaki sıralamanızı
+            görün.
           </p>
 
-          <div className="feature-row" aria-label="Platform özellikleri">
+          <div
+            className="feature-row"
+            aria-label="Platform özellikleri"
+          >
             <div className="feature-item">
               <FiBookOpen />
               <span>Kategori sınavları</span>
@@ -136,19 +179,31 @@ function LoginPage() {
 
         <div className="auth-card">
           <header className="auth-card-header">
-            <span className="section-label">Katılımcı girişi</span>
+            <span className="section-label">
+              Katılımcı girişi
+            </span>
+
             <h2>Hoş geldiniz</h2>
+
             <p>
-              Sınava başlamak için mağaza ve katılımcı bilgilerinizi girin.
+              Sınava başlamak için mağaza ve
+              katılımcı bilgilerinizi girin.
             </p>
           </header>
 
-          <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <form
+            className="auth-form"
+            onSubmit={handleSubmit}
+            noValidate
+          >
             <label className="form-field">
               <span>Ad Soyad</span>
 
               <div className="input-container">
-                <FiUser className="input-icon" aria-hidden="true" />
+                <FiUser
+                  className="input-icon"
+                  aria-hidden="true"
+                />
 
                 <input
                   type="text"
@@ -159,9 +214,16 @@ function LoginPage() {
                   autoComplete="name"
                   autoCapitalize="words"
                   spellCheck="false"
-                  aria-invalid={Boolean(errors.fullName)}
+                  required
+                  minLength={5}
+                  aria-required="true"
+                  aria-invalid={Boolean(
+                    errors.fullName,
+                  )}
                   aria-describedby={
-                    errors.fullName ? 'fullName-error' : undefined
+                    errors.fullName
+                      ? 'fullName-error'
+                      : undefined
                   }
                 />
               </div>
@@ -182,7 +244,10 @@ function LoginPage() {
                 <span>Mağaza Kodu</span>
 
                 <div className="input-container">
-                  <FiShield className="input-icon" aria-hidden="true" />
+                  <FiShield
+                    className="input-icon"
+                    aria-hidden="true"
+                  />
 
                   <input
                     type="text"
@@ -193,9 +258,15 @@ function LoginPage() {
                     placeholder="Örn. 045"
                     autoComplete="off"
                     maxLength={3}
-                    aria-invalid={Boolean(errors.storeCode)}
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(
+                      errors.storeCode,
+                    )}
                     aria-describedby={
-                      errors.storeCode ? 'storeCode-error' : undefined
+                      errors.storeCode
+                        ? 'storeCode-error'
+                        : undefined
                     }
                   />
                 </div>
@@ -215,7 +286,10 @@ function LoginPage() {
                 <span>Mağaza Adı</span>
 
                 <div className="input-container">
-                  <FiMapPin className="input-icon" aria-hidden="true" />
+                  <FiMapPin
+                    className="input-icon"
+                    aria-hidden="true"
+                  />
 
                   <input
                     type="text"
@@ -226,9 +300,15 @@ function LoginPage() {
                     autoComplete="organization"
                     autoCapitalize="words"
                     spellCheck="false"
-                    aria-invalid={Boolean(errors.storeName)}
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(
+                      errors.storeName,
+                    )}
                     aria-describedby={
-                      errors.storeName ? 'storeName-error' : undefined
+                      errors.storeName
+                        ? 'storeName-error'
+                        : undefined
                     }
                   />
                 </div>
@@ -245,13 +325,19 @@ function LoginPage() {
               </label>
             </div>
 
-            <button className="primary-button" type="submit">
+            <button
+              className="primary-button"
+              type="submit"
+            >
               <span>Sınava Başla</span>
               <FiArrowRight aria-hidden="true" />
             </button>
           </form>
 
-          <div className="divider" aria-hidden="true">
+          <div
+            className="divider"
+            aria-hidden="true"
+          >
             <span>veya</span>
           </div>
 
