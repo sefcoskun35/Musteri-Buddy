@@ -939,7 +939,7 @@ function CategoryPage() {
               return (
                 <article
                   key={category.id}
-                  className={`category-card \${category.accent}`}
+                 className={`category-card ${category.accent}`}
                   role="button"
                   tabIndex={0}
                   onClick={() =>
