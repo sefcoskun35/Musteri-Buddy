@@ -7,6 +7,7 @@ import {
   FiSearch,
   FiUsers,
 } from 'react-icons/fi'
+import * as XLSX from 'xlsx'
 import AdminSidebar from '../components/AdminSidebar'
 import { getAllResults } from '../services/adminResultService'
 import '../styles/admin-dashboard.css'
@@ -35,6 +36,19 @@ const getCompletedAtTimestamp = (value) => {
   return Number.isNaN(parsedTimestamp)
     ? 0
     : parsedTimestamp
+}
+
+const formatCompletedAt = (value) => {
+  const timestamp = getCompletedAtTimestamp(value)
+
+  if (!timestamp) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('tr-TR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(timestamp))
 }
 
 const compareResults = (firstResult, secondResult) => {
@@ -85,10 +99,19 @@ const getParticipantKey = (item) => {
   ].join('__')
 }
 
+const sanitizeFileName = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[<>:"/\\|?*]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+
 function StoreRankingPage() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const [storeFilter, setStoreFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -427,6 +450,164 @@ function StoreRankingPage() {
     setSearchText('')
   }
 
+  const handleExcelDownload = () => {
+    if (!filteredRanking.length || exporting) {
+      return
+    }
+
+    try {
+      setExporting(true)
+
+      const exportRows = filteredRanking.map(
+        (item) => ({
+          'Mağaza Kodu': getStoreKey(item),
+          'Mağaza Adı': item.storeName || '',
+          Kategori: getCategoryKey(item),
+          'Mağaza İçi Sıra': Number(
+            item.storeRank || 0,
+          ),
+          'Ad Soyad': item.fullName || '',
+          Puan: Number(item.score || 0),
+          Doğru: Number(
+            item.correctCount || 0,
+          ),
+          Yanlış: Number(
+            item.wrongCount || 0,
+          ),
+          'Toplam Soru': Number(
+            item.totalQuestions || 0,
+          ),
+          Süre: formatDuration(item.duration),
+          'Süre (Saniye)': Number(
+            item.duration || 0,
+          ),
+          'Tamamlanma Tarihi':
+            formatCompletedAt(item.completedAt),
+        }),
+      )
+
+      const worksheet =
+        XLSX.utils.json_to_sheet(exportRows)
+
+      worksheet['!cols'] = [
+        { wch: 14 },
+        { wch: 28 },
+        { wch: 24 },
+        { wch: 17 },
+        { wch: 28 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 22 },
+      ]
+
+      worksheet['!autofilter'] = {
+        ref: `A1:L${exportRows.length + 1}`,
+      }
+
+      const workbook =
+        XLSX.utils.book_new()
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        'Mağaza Sıralaması',
+      )
+
+      const summaryRows = groupedRankings.map(
+        (group) => ({
+          'Mağaza Kodu': group.storeCode,
+          'Mağaza Adı': group.storeName,
+          Kategori: group.categoryName,
+          'Katılımcı Sayısı':
+            group.participants.length,
+          Birinci:
+            group.participants[0]?.fullName || '',
+          'Birinci Puan':
+            Number(
+              group.participants[0]?.score || 0,
+            ),
+          İkinci:
+            group.participants[1]?.fullName || '',
+          'İkinci Puan':
+            group.participants[1]
+              ? Number(
+                  group.participants[1]?.score ||
+                    0,
+                )
+              : '',
+          Üçüncü:
+            group.participants[2]?.fullName || '',
+          'Üçüncü Puan':
+            group.participants[2]
+              ? Number(
+                  group.participants[2]?.score ||
+                    0,
+                )
+              : '',
+        }),
+      )
+
+      const summaryWorksheet =
+        XLSX.utils.json_to_sheet(summaryRows)
+
+      summaryWorksheet['!cols'] = [
+        { wch: 14 },
+        { wch: 28 },
+        { wch: 24 },
+        { wch: 18 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 28 },
+        { wch: 14 },
+      ]
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        summaryWorksheet,
+        'Kategori Özeti',
+      )
+
+      const dateText = new Date()
+        .toISOString()
+        .slice(0, 10)
+
+      const storeFilePart = storeFilter
+        ? sanitizeFileName(
+            selectedStore?.name ||
+              selectedStore?.code,
+          )
+        : 'Tum-Magazalar'
+
+      const categoryFilePart = categoryFilter
+        ? sanitizeFileName(categoryFilter)
+        : 'Tum-Kategoriler'
+
+      const fileName =
+        `Magaza-Ici-Kategori-Siralamasi-${storeFilePart}-${categoryFilePart}-${dateText}.xlsx`
+
+      XLSX.writeFile(workbook, fileName, {
+        compression: true,
+      })
+    } catch (error) {
+      console.error(
+        'Excel dosyası oluşturulamadı:',
+        error,
+      )
+
+      window.alert(
+        'Excel dosyası oluşturulamadı. Lütfen tekrar deneyin.',
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const uniqueStoreCount = new Set(
     filteredRanking.map((item) =>
       getStoreKey(item),
@@ -475,12 +656,21 @@ function StoreRankingPage() {
 
             <button
               type="button"
-              disabled
-              title="Excel indirme özelliği sonraki aşamada eklenecek"
+              onClick={handleExcelDownload}
+              disabled={
+                loading ||
+                exporting ||
+                filteredRanking.length === 0
+              }
+              title="Filtrelenmiş sıralamayı Excel olarak indir"
             >
               <FiDownload />
 
-              <span>Excel İndir</span>
+              <span>
+                {exporting
+                  ? 'Hazırlanıyor'
+                  : 'Excel İndir'}
+              </span>
             </button>
           </div>
         </header>
