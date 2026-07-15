@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FiAlertCircle,
   FiArrowRight,
+  FiAward,
   FiBookOpen,
+  FiCheckCircle,
   FiLock,
+  FiMapPin,
+  FiShield,
+  FiUser,
   FiUsers,
 } from 'react-icons/fi'
-import { registerOrGetUser } from '../services/userService'
 import '../styles/auth.css'
 
 const initialForm = {
@@ -18,11 +21,8 @@ const initialForm = {
 
 function LoginPage() {
   const navigate = useNavigate()
-
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
-  const [loginError, setLoginError] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -37,12 +37,12 @@ function LoginPage() {
       [name]: nextValue,
     }))
 
-    setErrors((current) => ({
-      ...current,
-      [name]: '',
-    }))
-
-    setLoginError('')
+    if (errors[name]) {
+      setErrors((current) => ({
+        ...current,
+        [name]: '',
+      }))
+    }
   }
 
   const validate = () => {
@@ -65,61 +65,35 @@ function LoginPage() {
     return Object.keys(nextErrors).length === 0
   }
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault()
 
-    if (!validate() || isSubmitting) {
-      return
-    }
+    if (!validate()) return
 
-    const participant = {
-      fullName: form.fullName.trim(),
-      storeCode: form.storeCode.trim(),
-      storeName: form.storeName.trim(),
-    }
+    sessionStorage.setItem('musteriBuddyMode', 'official')
 
-    try {
-      setIsSubmitting(true)
-      setLoginError('')
+    sessionStorage.setItem(
+      'musteriBuddyParticipant',
+      JSON.stringify({
+        fullName: form.fullName.trim(),
+        storeCode: form.storeCode,
+        storeName: form.storeName.trim(),
+      }),
+    )
 
-      const user = await registerOrGetUser(participant)
-
-      sessionStorage.setItem('musteriBuddyMode', 'official')
-
-      sessionStorage.setItem(
-        'musteriBuddyParticipant',
-        JSON.stringify({
-          id: user.id,
-          fullName: user.fullName,
-          storeCode: user.storeCode,
-          storeName: user.storeName,
-        }),
-      )
-
-      navigate('/kategoriler')
-    } catch (error) {
-      console.error('Katılımcı girişi yapılamadı:', error)
-
-      setLoginError(
-        error?.message ||
-          'Giriş işlemi tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.',
-      )
-    } finally {
-      setIsSubmitting(false)
-    }
+    navigate('/kategoriler')
   }
 
   const startDemo = () => {
     sessionStorage.setItem('musteriBuddyMode', 'demo')
     sessionStorage.removeItem('musteriBuddyParticipant')
-
     navigate('/kategoriler')
   }
 
   return (
     <main className="auth-page">
-      <div className="auth-background auth-background-one" />
-      <div className="auth-background auth-background-two" />
+      <div className="auth-background auth-background-one" aria-hidden="true" />
+      <div className="auth-background auth-background-two" aria-hidden="true" />
 
       <section className="auth-shell">
         <div className="auth-intro">
@@ -127,7 +101,10 @@ function LoginPage() {
             <FiUsers />
           </div>
 
-          <span className="eyebrow">Bilgi ve gelişim platformu</span>
+          <span className="eyebrow">
+            <FiCheckCircle />
+            Bilgi ve gelişim platformu
+          </span>
 
           <h1>
             Müşteri
@@ -139,10 +116,15 @@ function LoginPage() {
             sıralamanızı görün.
           </p>
 
-          <div className="feature-row">
+          <div className="feature-row" aria-label="Platform özellikleri">
             <div className="feature-item">
               <FiBookOpen />
               <span>Kategori sınavları</span>
+            </div>
+
+            <div className="feature-item">
+              <FiAward />
+              <span>Başarı rozetleri</span>
             </div>
 
             <div className="feature-item">
@@ -153,28 +135,45 @@ function LoginPage() {
         </div>
 
         <div className="auth-card">
-          <div className="auth-card-header">
+          <header className="auth-card-header">
             <span className="section-label">Katılımcı girişi</span>
-            <h2>Bilgilerinizi girin</h2>
-            <p>Sınavlara erişmek için bilgilerinizi eksiksiz doldurun.</p>
-          </div>
+            <h2>Hoş geldiniz</h2>
+            <p>
+              Sınava başlamak için mağaza ve katılımcı bilgilerinizi girin.
+            </p>
+          </header>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <label className="form-field">
               <span>Ad Soyad</span>
 
-              <input
-                type="text"
-                name="fullName"
-                value={form.fullName}
-                onChange={handleChange}
-                placeholder="Adınız ve soyadınız"
-                autoComplete="name"
-                disabled={isSubmitting}
-              />
+              <div className="input-container">
+                <FiUser className="input-icon" aria-hidden="true" />
+
+                <input
+                  type="text"
+                  name="fullName"
+                  value={form.fullName}
+                  onChange={handleChange}
+                  placeholder="Adınız ve soyadınız"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  spellCheck="false"
+                  aria-invalid={Boolean(errors.fullName)}
+                  aria-describedby={
+                    errors.fullName ? 'fullName-error' : undefined
+                  }
+                />
+              </div>
 
               {errors.fullName && (
-                <small className="field-error">{errors.fullName}</small>
+                <small
+                  className="field-error"
+                  id="fullName-error"
+                  role="alert"
+                >
+                  {errors.fullName}
+                </small>
               )}
             </label>
 
@@ -182,82 +181,77 @@ function LoginPage() {
               <label className="form-field">
                 <span>Mağaza Kodu</span>
 
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  name="storeCode"
-                  value={form.storeCode}
-                  onChange={handleChange}
-                  placeholder="Örn. 045"
-                  autoComplete="off"
-                  disabled={isSubmitting}
-                />
+                <div className="input-container">
+                  <FiShield className="input-icon" aria-hidden="true" />
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    name="storeCode"
+                    value={form.storeCode}
+                    onChange={handleChange}
+                    placeholder="Örn. 045"
+                    autoComplete="off"
+                    maxLength={3}
+                    aria-invalid={Boolean(errors.storeCode)}
+                    aria-describedby={
+                      errors.storeCode ? 'storeCode-error' : undefined
+                    }
+                  />
+                </div>
 
                 {errors.storeCode && (
-                  <small className="field-error">{errors.storeCode}</small>
+                  <small
+                    className="field-error"
+                    id="storeCode-error"
+                    role="alert"
+                  >
+                    {errors.storeCode}
+                  </small>
                 )}
               </label>
 
               <label className="form-field">
                 <span>Mağaza Adı</span>
 
-                <input
-                  type="text"
-                  name="storeName"
-                  value={form.storeName}
-                  onChange={handleChange}
-                  placeholder="Mağaza adı"
-                  autoComplete="organization"
-                  disabled={isSubmitting}
-                />
+                <div className="input-container">
+                  <FiMapPin className="input-icon" aria-hidden="true" />
+
+                  <input
+                    type="text"
+                    name="storeName"
+                    value={form.storeName}
+                    onChange={handleChange}
+                    placeholder="Mağaza adı"
+                    autoComplete="organization"
+                    autoCapitalize="words"
+                    spellCheck="false"
+                    aria-invalid={Boolean(errors.storeName)}
+                    aria-describedby={
+                      errors.storeName ? 'storeName-error' : undefined
+                    }
+                  />
+                </div>
 
                 {errors.storeName && (
-                  <small className="field-error">{errors.storeName}</small>
+                  <small
+                    className="field-error"
+                    id="storeName-error"
+                    role="alert"
+                  >
+                    {errors.storeName}
+                  </small>
                 )}
               </label>
             </div>
 
-            {loginError && (
-              <div
-                role="alert"
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '9px',
-                  padding: '12px 13px',
-                  border: '1px solid #efc1c6',
-                  borderRadius: '11px',
-                  background: '#fff1f2',
-                  color: '#b53c49',
-                  fontSize: '12px',
-                  lineHeight: '1.5',
-                }}
-              >
-                <FiAlertCircle
-                  style={{
-                    flexShrink: 0,
-                    marginTop: '2px',
-                  }}
-                />
-
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={isSubmitting}
-            >
-              <span>
-                {isSubmitting ? 'Kontrol ediliyor...' : 'Devam Et'}
-              </span>
-
-              <FiArrowRight />
+            <button className="primary-button" type="submit">
+              <span>Sınava Başla</span>
+              <FiArrowRight aria-hidden="true" />
             </button>
           </form>
 
-          <div className="divider">
+          <div className="divider" aria-hidden="true">
             <span>veya</span>
           </div>
 
@@ -265,27 +259,26 @@ function LoginPage() {
             className="secondary-button"
             type="button"
             onClick={startDemo}
-            disabled={isSubmitting}
           >
-            <FiBookOpen />
-            <span>Demo Sınavını Gör</span>
+            <FiBookOpen aria-hidden="true" />
+            <span>Demo Sınavını İncele</span>
           </button>
 
           <button
             className="admin-link"
             type="button"
-            disabled={isSubmitting}
             onClick={() => navigate('/yonetici')}
           >
-            <FiLock />
+            <FiLock aria-hidden="true" />
             <span>Sistem Yöneticisi Girişi</span>
           </button>
         </div>
       </section>
 
       <footer className="auth-footer">
+        <FiShield aria-hidden="true" />
         <span>Müşteri Buddy</span>
-        <span>•</span>
+        <span aria-hidden="true">•</span>
         <span>Güvenli sınav deneyimi</span>
       </footer>
     </main>
