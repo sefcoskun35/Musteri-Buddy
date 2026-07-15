@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AdminSidebar from '../components/AdminSidebar'
 import {
   FiActivity,
   FiArrowRight,
@@ -335,68 +336,7 @@ function DashboardPage() {
       <style>{styles}</style>
 
       <main className="dashboard-page">
-        <aside className="dashboard-sidebar">
-          <div className="dashboard-brand">
-            <div className="dashboard-logo">MB</div>
-
-            <div>
-              <strong>Müşteri Buddy</strong>
-              <span>Yönetim Paneli</span>
-            </div>
-          </div>
-
-          <nav className="dashboard-navigation">
-            <button
-              type="button"
-              className="active"
-              onClick={() => navigate('/yonetim/dashboard')}
-            >
-              <FiGrid />
-              <span>Dashboard</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/sorular')}
-            >
-              <FiHelpCircle />
-              <span>Soru Yönetimi</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim')}
-            >
-              <FiUploadCloud />
-              <span>Excel ile Soru Yükle</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/sonuclar')}
-            >
-              <FiFileText />
-              <span>Sınav Sonuçları</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/siralama')}
-            >
-              <FiAward />
-              <span>Mağaza Sıralaması</span>
-            </button>
-          </nav>
-
-          <button
-            type="button"
-            className="dashboard-logout"
-            onClick={handleLogout}
-          >
-            <FiLogOut />
-            <span>Çıkış Yap</span>
-          </button>
-        </aside>
+  <AdminSidebar />
 
         <section className="dashboard-content">
           <header className="dashboard-header">

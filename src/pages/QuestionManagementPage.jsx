@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AdminSidebar from '../components/AdminSidebar'
 import {
+
   addDoc,
   collection,
   deleteDoc,
@@ -29,6 +31,7 @@ import {
   FiTrash2,
   FiUploadCloud,
   FiX,
+  FiUsers
 } from 'react-icons/fi'
 import { db } from '../services/firebase'
 import '../styles/question-management.css'
@@ -543,67 +546,7 @@ function QuestionManagementPage() {
   return (
     <>
       <main className="question-management-page">
-        <aside className="question-sidebar">
-          <div className="question-sidebar-brand">
-            <span className="question-brand-icon">MB</span>
-
-            <div>
-              <strong>Müşteri Buddy</strong>
-              <small>Yönetim Paneli</small>
-            </div>
-          </div>
-
-          <nav className="question-sidebar-navigation">
-            <button
-  type="button"
-  onClick={() => navigate('/yonetim/dashboard')}
->
-  <FiGrid />
-  Dashboard
-</button>
-
-<button
-  type="button"
-  onClick={() => navigate('/yonetim')}
->
-  <FiUploadCloud />
-  Excel ile Yükle
-</button>
-
-            <button
-              type="button"
-              className="active"
-            >
-              <FiHelpCircle />
-              Soru Yönetimi
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/sonuclar')}
-            >
-              <FiFileText />
-              Sonuçlar
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/yonetim/siralama')}
-            >
-              <FiCheckCircle />
-              Mağaza Sıralaması
-            </button>
-          </nav>
-
-          <button
-            type="button"
-            className="question-logout-button"
-            onClick={() => navigate('/')}
-          >
-            <FiLogOut />
-            Çıkış
-          </button>
-        </aside>
+        <AdminSidebar />
 
         <section className="question-main-content">
           <header className="question-page-header">

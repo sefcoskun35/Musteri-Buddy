@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import AdminSidebar from '../components/AdminSidebar'
 import {
   FiAlertCircle,
   FiAward,
@@ -10,6 +11,7 @@ import {
   FiHelpCircle,
   FiLogOut,
   FiUploadCloud,
+  FiUsers,
 } from 'react-icons/fi'
 import { uploadQuestions } from '../services/questionService'
 import '../styles/admin-dashboard.css'
@@ -246,75 +248,7 @@ function AdminDashboardPage() {
 
   return (
     <main className="admin-dashboard">
-      <aside className="admin-sidebar">
-        <div>
-          <span className="admin-logo-small">MB</span>
-
-          <div>
-            <strong>Müşteri Buddy</strong>
-            <small>Yönetim Paneli</small>
-          </div>
-        </div>
-
-        <nav>
-          <button
-            type="button"
-            onClick={() =>
-              navigate('/yonetim/dashboard')
-            }
-          >
-            <FiGrid />
-            Dashboard
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate('/yonetim/sorular')
-            }
-          >
-            <FiHelpCircle />
-            Soru Yönetimi
-          </button>
-
-          <button
-            type="button"
-            className="active"
-          >
-            <FiUploadCloud />
-            Excel ile Soru Yükle
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate('/yonetim/sonuclar')
-            }
-          >
-            <FiFileText />
-            Sınav Sonuçları
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate('/yonetim/siralama')
-            }
-          >
-            <FiAward />
-            Mağaza Sıralaması
-          </button>
-        </nav>
-
-        <button
-          type="button"
-          className="logout-button"
-          onClick={handleLogout}
-        >
-          <FiLogOut />
-          Çıkış Yap
-        </button>
-      </aside>
+  <AdminSidebar />
 
       <section className="admin-content">
         <header className="admin-content-header">

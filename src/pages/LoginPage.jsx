@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  FiAlertCircle,
   FiArrowRight,
   FiBookOpen,
   FiLock,
   FiUsers,
 } from 'react-icons/fi'
+import { registerOrGetUser } from '../services/userService'
 import '../styles/auth.css'
 
 const initialForm = {
@@ -16,8 +18,11 @@ const initialForm = {
 
 function LoginPage() {
   const navigate = useNavigate()
+
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
+  const [loginError, setLoginError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -36,6 +41,8 @@ function LoginPage() {
       ...current,
       [name]: '',
     }))
+
+    setLoginError('')
   }
 
   const validate = () => {
@@ -58,27 +65,54 @@ function LoginPage() {
     return Object.keys(nextErrors).length === 0
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (!validate()) return
+    if (!validate() || isSubmitting) {
+      return
+    }
 
-    sessionStorage.setItem('musteriBuddyMode', 'official')
+    const participant = {
+      fullName: form.fullName.trim(),
+      storeCode: form.storeCode.trim(),
+      storeName: form.storeName.trim(),
+    }
 
-    sessionStorage.setItem(
-      'musteriBuddyParticipant',
-      JSON.stringify({
-        fullName: form.fullName.trim(),
-        storeCode: form.storeCode,
-        storeName: form.storeName.trim(),
-      }),
-    )
+    try {
+      setIsSubmitting(true)
+      setLoginError('')
 
-    navigate('/kategoriler')
+      const user = await registerOrGetUser(participant)
+
+      sessionStorage.setItem('musteriBuddyMode', 'official')
+
+      sessionStorage.setItem(
+        'musteriBuddyParticipant',
+        JSON.stringify({
+          id: user.id,
+          fullName: user.fullName,
+          storeCode: user.storeCode,
+          storeName: user.storeName,
+        }),
+      )
+
+      navigate('/kategoriler')
+    } catch (error) {
+      console.error('Katılımcı girişi yapılamadı:', error)
+
+      setLoginError(
+        error?.message ||
+          'Giriş işlemi tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const startDemo = () => {
     sessionStorage.setItem('musteriBuddyMode', 'demo')
+    sessionStorage.removeItem('musteriBuddyParticipant')
+
     navigate('/kategoriler')
   }
 
@@ -128,6 +162,7 @@ function LoginPage() {
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <label className="form-field">
               <span>Ad Soyad</span>
+
               <input
                 type="text"
                 name="fullName"
@@ -135,7 +170,9 @@ function LoginPage() {
                 onChange={handleChange}
                 placeholder="Adınız ve soyadınız"
                 autoComplete="name"
+                disabled={isSubmitting}
               />
+
               {errors.fullName && (
                 <small className="field-error">{errors.fullName}</small>
               )}
@@ -144,6 +181,7 @@ function LoginPage() {
             <div className="form-grid">
               <label className="form-field">
                 <span>Mağaza Kodu</span>
+
                 <input
                   type="text"
                   inputMode="numeric"
@@ -152,7 +190,9 @@ function LoginPage() {
                   onChange={handleChange}
                   placeholder="Örn. 045"
                   autoComplete="off"
+                  disabled={isSubmitting}
                 />
+
                 {errors.storeCode && (
                   <small className="field-error">{errors.storeCode}</small>
                 )}
@@ -160,6 +200,7 @@ function LoginPage() {
 
               <label className="form-field">
                 <span>Mağaza Adı</span>
+
                 <input
                   type="text"
                   name="storeName"
@@ -167,15 +208,51 @@ function LoginPage() {
                   onChange={handleChange}
                   placeholder="Mağaza adı"
                   autoComplete="organization"
+                  disabled={isSubmitting}
                 />
+
                 {errors.storeName && (
                   <small className="field-error">{errors.storeName}</small>
                 )}
               </label>
             </div>
 
-            <button className="primary-button" type="submit">
-              <span>Devam Et</span>
+            {loginError && (
+              <div
+                role="alert"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '9px',
+                  padding: '12px 13px',
+                  border: '1px solid #efc1c6',
+                  borderRadius: '11px',
+                  background: '#fff1f2',
+                  color: '#b53c49',
+                  fontSize: '12px',
+                  lineHeight: '1.5',
+                }}
+              >
+                <FiAlertCircle
+                  style={{
+                    flexShrink: 0,
+                    marginTop: '2px',
+                  }}
+                />
+
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={isSubmitting}
+            >
+              <span>
+                {isSubmitting ? 'Kontrol ediliyor...' : 'Devam Et'}
+              </span>
+
               <FiArrowRight />
             </button>
           </form>
@@ -184,7 +261,12 @@ function LoginPage() {
             <span>veya</span>
           </div>
 
-          <button className="secondary-button" type="button" onClick={startDemo}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={startDemo}
+            disabled={isSubmitting}
+          >
             <FiBookOpen />
             <span>Demo Sınavını Gör</span>
           </button>
@@ -192,6 +274,7 @@ function LoginPage() {
           <button
             className="admin-link"
             type="button"
+            disabled={isSubmitting}
             onClick={() => navigate('/yonetici')}
           >
             <FiLock />
