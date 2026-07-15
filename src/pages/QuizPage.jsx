@@ -20,8 +20,6 @@ import '../styles/quiz.css'
 
 const ANSWER_FEEDBACK_DELAY = 1500
 
-const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
-
 function QuizPage() {
   const navigate = useNavigate()
   const { categoryId } = useParams()
@@ -42,56 +40,6 @@ function QuizPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const htmlElement = document.documentElement
-    const bodyElement = document.body
-
-    const previousHtmlOverflow =
-      htmlElement.style.overflow
-    const previousHtmlHeight =
-      htmlElement.style.height
-    const previousHtmlBackground =
-      htmlElement.style.background
-
-    const previousBodyOverflow =
-      bodyElement.style.overflow
-    const previousBodyHeight =
-      bodyElement.style.height
-    const previousBodyMargin =
-      bodyElement.style.margin
-    const previousBodyBackground =
-      bodyElement.style.background
-    const previousBodyOverscroll =
-      bodyElement.style.overscrollBehavior
-
-    htmlElement.style.overflow = 'hidden'
-    htmlElement.style.height = '100%'
-    htmlElement.style.background = '#0794eb'
-
-    bodyElement.style.overflow = 'hidden'
-    bodyElement.style.height = '100%'
-    bodyElement.style.margin = '0'
-    bodyElement.style.background = '#0794eb'
-    bodyElement.style.overscrollBehavior = 'none'
-
-    return () => {
-      htmlElement.style.overflow =
-        previousHtmlOverflow
-      htmlElement.style.height = previousHtmlHeight
-      htmlElement.style.background =
-        previousHtmlBackground
-
-      bodyElement.style.overflow =
-        previousBodyOverflow
-      bodyElement.style.height = previousBodyHeight
-      bodyElement.style.margin = previousBodyMargin
-      bodyElement.style.background =
-        previousBodyBackground
-      bodyElement.style.overscrollBehavior =
-        previousBodyOverscroll
-    }
-  }, [])
-
-  useEffect(() => {
     let isMounted = true
 
     async function loadQuestions() {
@@ -99,8 +47,7 @@ function QuizPage() {
         setIsLoading(true)
         setError('')
 
-        const categoryName =
-          categoryNames[categoryId]
+        const categoryName = categoryNames[categoryId]
 
         if (!categoryName) {
           navigate('/kategoriler', {
@@ -125,73 +72,26 @@ function QuizPage() {
           await getQuestionsByCategory(categoryName)
 
         const preparedQuestions =
-          firestoreQuestions.map((question) => {
-            const correctAnswerIndex =
-              ANSWER_LETTERS.indexOf(
-                String(
-                  question.correctAnswer || '',
-                ).toUpperCase(),
-              )
-
-            const normalizedOptions = Array.isArray(
-              question.options,
-            )
-              ? question.options.map(
-                  (option, optionIndex) => {
-                    if (
-                      typeof option === 'string'
-                    ) {
-                      return {
-                        text: option,
-                        isCorrect:
-                          optionIndex ===
-                          correctAnswerIndex,
-                      }
-                    }
-
-                    return {
-                      ...option,
-                      text:
-                        option?.text ||
-                        option?.label ||
-                        '',
-                      isCorrect:
-                        typeof option?.isCorrect ===
-                        'boolean'
-                          ? option.isCorrect
-                          : optionIndex ===
-                            correctAnswerIndex,
-                    }
-                  },
-                )
-              : []
-
-            return {
-              id: question.id,
-              question: question.question,
-              options: normalizedOptions,
-              correctAnswer: correctAnswerIndex,
-            }
-          })
+          firestoreQuestions.map((question) => ({
+            id: question.id,
+            question: question.question,
+            options: question.options,
+            correctAnswer: [
+              'A',
+              'B',
+              'C',
+              'D',
+            ].indexOf(
+              String(
+                question.correctAnswer || '',
+              ).toUpperCase(),
+            ),
+          }))
 
         const requiredCount = isDemo ? 5 : 10
 
-        const validQuestions =
-          preparedQuestions.filter(
-            (question) =>
-              question.id &&
-              question.question &&
-              question.options.length === 4 &&
-              question.options.every(
-                (option) => option.text,
-              ) &&
-              question.options.some(
-                (option) => option.isCorrect,
-              ),
-          )
-
         if (
-          validQuestions.length < requiredCount
+          preparedQuestions.length < requiredCount
         ) {
           throw new Error(
             `${categoryName} kategorisinde en az ${requiredCount} geçerli soru bulunmalıdır.`,
@@ -201,7 +101,7 @@ function QuizPage() {
         if (isMounted) {
           setQuestions(
             prepareQuiz(
-              validQuestions,
+              preparedQuestions,
               requiredCount,
             ),
           )
@@ -274,10 +174,9 @@ function QuizPage() {
     return `${String(minutes).padStart(
       2,
       '0',
-    )}:${String(remainingSeconds).padStart(
-      2,
-      '0',
-    )}`
+    )}:${String(
+      remainingSeconds,
+    ).padStart(2, '0')}`
   }
 
   if (isLoading) {
@@ -288,9 +187,8 @@ function QuizPage() {
         <h1>Sorular hazırlanıyor</h1>
 
         <p>
-          Sınavınız güvenli şekilde
-          hazırlanıyor. Lütfen kısa bir süre
-          bekleyin.
+          Sınavınız güvenli şekilde hazırlanıyor.
+          Lütfen kısa bir süre bekleyin.
         </p>
       </main>
     )
@@ -320,37 +218,11 @@ function QuizPage() {
   const currentQuestion =
     questions[currentIndex]
 
-  if (!currentQuestion) {
-    return (
-      <main className="quiz-state-page">
-        <FiAlertCircle className="error-icon" />
-
-        <h1>Soru bulunamadı</h1>
-
-        <p>
-          Sınav sorusu görüntülenemedi.
-          Kategoriler ekranına dönerek tekrar
-          deneyin.
-        </p>
-
-        <button
-          type="button"
-          onClick={() =>
-            navigate('/kategoriler')
-          }
-        >
-          Kategorilere Dön
-        </button>
-      </main>
-    )
-  }
-
   const selectedAnswer =
     answers[currentQuestion.id]
 
   const progress =
-    ((currentIndex + 1) /
-      questions.length) *
+    ((currentIndex + 1) / questions.length) *
     100
 
   const finishQuiz = async (
@@ -390,7 +262,8 @@ function QuizPage() {
       ),
       duration: seconds,
       isDemo,
-      completedAt: new Date().toISOString(),
+      completedAt:
+        new Date().toISOString(),
     }
 
     try {
@@ -476,7 +349,7 @@ function QuizPage() {
       return 'answer-option-correct'
     }
 
-    if (isSelected) {
+    if (isSelected && !option.isCorrect) {
       return 'answer-option-wrong'
     }
 
@@ -511,15 +384,15 @@ function QuizPage() {
         </button>
 
         <div className="quiz-heading">
-          <strong>
-            {categoryNames[categoryId]}
-          </strong>
-
           <span>
             {isDemo
               ? 'Demo sınavı'
               : 'Resmî sınav'}
           </span>
+
+          <strong>
+            {categoryNames[categoryId]}
+          </strong>
         </div>
 
         <div
@@ -576,7 +449,9 @@ function QuizPage() {
                   selectedAnswer === index
 
                 const answerLetter =
-                  ANSWER_LETTERS[index]
+                  String.fromCharCode(
+                    65 + index,
+                  )
 
                 return (
                   <button
@@ -615,7 +490,8 @@ function QuizPage() {
                         undefined &&
                       option.isCorrect ? (
                         <FiCheck />
-                      ) : isSelected ? (
+                      ) : isSelected &&
+                        !option.isCorrect ? (
                         <FiX />
                       ) : null}
                     </span>
@@ -625,13 +501,7 @@ function QuizPage() {
             )}
           </div>
 
-          {selectedAnswer === undefined ? (
-            <div className="quiz-selection-hint">
-              En doğru olduğunu düşündüğünüz
-              seçeneğe dokunun. Seçimin ardından
-              sonraki soruya otomatik geçilir.
-            </div>
-          ) : (
+          {selectedAnswer !== undefined && (
             <div
               className={`quiz-answer-feedback ${
                 answerIsCorrect
@@ -675,6 +545,14 @@ function QuizPage() {
             </div>
           )}
 
+          {selectedAnswer === undefined && (
+            <div className="quiz-selection-hint">
+              En doğru olduğunu düşündüğünüz
+              seçeneğe dokunun. Seçimin ardından
+              sonraki soruya otomatik geçilir.
+            </div>
+          )}
+
           {isSaving && (
             <div className="quiz-saving-state">
               <FiLoader />
@@ -689,11 +567,9 @@ function QuizPage() {
         <div className="quiz-notice">
           <FiShield />
 
-          <span>
-            {isDemo
-              ? 'Demo sonucu mağaza sıralamasına dahil edilmez.'
-              : 'Sınav sonucu güvenli şekilde otomatik kaydedilecektir.'}
-          </span>
+          {isDemo
+            ? 'Demo sonucu mağaza sıralamasına dahil edilmez.'
+            : 'Sınav sonucu güvenli şekilde otomatik kaydedilecektir.'}
         </div>
       </section>
     </main>
