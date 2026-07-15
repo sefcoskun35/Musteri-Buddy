@@ -408,13 +408,44 @@ function QuizPage() {
       </header>
 
       <section className="quiz-container">
-        <div className="quiz-progress-info">
-          <span>
+        <div
+          className="quiz-progress-info"
+          style={{
+            minHeight: '30px',
+            padding: '0 4px',
+          }}
+        >
+          <span
+            style={{
+              fontWeight: 900,
+              color: '#ffffff',
+              textShadow:
+                '0 4px 12px rgba(0, 44, 94, 0.26)',
+            }}
+          >
             Soru {currentIndex + 1} /{' '}
             {questions.length}
           </span>
 
-          <span>
+          <span
+            style={{
+              minWidth: '48px',
+              padding: '6px 10px',
+              borderRadius: '999px',
+              color: '#ffffff',
+              background:
+                'rgba(3, 42, 88, 0.22)',
+              border:
+                '1px solid rgba(255, 255, 255, 0.22)',
+              boxShadow:
+                'inset 0 1px 0 rgba(255, 255, 255, 0.16)',
+              fontWeight: 900,
+              textAlign: 'center',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter:
+                'blur(10px)',
+            }}
+          >
             %{Math.round(progress)}
           </span>
         </div>
@@ -425,12 +456,69 @@ function QuizPage() {
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow={Math.round(progress)}
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '18px',
+            minHeight: '18px',
+            padding: '3px',
+            overflow: 'visible',
+            borderRadius: '999px',
+            border:
+              '1px solid rgba(255, 255, 255, 0.52)',
+            background:
+              'linear-gradient(180deg, rgba(231, 251, 255, 0.92) 0%, rgba(199, 235, 246, 0.82) 100%)',
+            boxShadow:
+              '0 7px 18px rgba(0, 53, 112, 0.15), inset 0 2px 5px rgba(4, 63, 112, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.85)',
+          }}
         >
           <div
             style={{
+              position: 'relative',
               width: `${progress}%`,
+              height: '100%',
+              minWidth: '12px',
+              overflow: 'visible',
+              borderRadius: '999px',
+              background:
+                'linear-gradient(90deg, #9BF05D 0%, #54E576 30%, #17D394 65%, #08B99A 100%)',
+              boxShadow:
+                '0 0 15px rgba(44, 232, 147, 0.62), 0 3px 8px rgba(2, 143, 108, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.62)',
+              transition:
+                'width 360ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
-          />
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                inset: '0',
+                overflow: 'hidden',
+                borderRadius: '999px',
+                background:
+                  'linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.16) 34%, rgba(255, 255, 255, 0.56) 49%, rgba(255, 255, 255, 0.12) 64%, transparent 100%)',
+              }}
+            />
+
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: '-7px',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                transform: 'translateY(-50%)',
+                border:
+                  '3px solid rgba(255, 255, 255, 0.96)',
+                background:
+                  'linear-gradient(145deg, #50E99E, #06B98C)',
+                boxShadow:
+                  '0 0 0 3px rgba(33, 222, 145, 0.22), 0 3px 9px rgba(0, 105, 82, 0.3)',
+              }}
+            />
+          </div>
         </div>
 
         <article className="question-card">
