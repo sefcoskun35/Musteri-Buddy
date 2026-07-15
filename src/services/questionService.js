@@ -2,13 +2,59 @@ import {
   collection,
   doc,
   getDocs,
+  query,
   serverTimestamp,
+  where,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './firebase'
 
 const QUESTIONS_COLLECTION = 'questions'
 const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
+
+const CATEGORY_CONFIG = {
+  health: {
+    canonicalName: 'Health',
+    aliases: [
+      'Health',
+      'Healthy',
+      'Healt',
+      'health',
+      'healthy',
+      'healt',
+    ],
+  },
+  'personal care': {
+    canonicalName: 'Personal Care',
+    aliases: [
+      'Personal Care',
+      'personal care',
+      'PersonalCare',
+      'personalcare',
+      'personal-care',
+    ],
+  },
+  'hair care': {
+    canonicalName: 'Hair Care',
+    aliases: [
+      'Hair Care',
+      'hair care',
+      'HairCare',
+      'haircare',
+      'hair-care',
+    ],
+  },
+  'general merchandise': {
+    canonicalName: 'General Merchandise',
+    aliases: [
+      'General Merchandise',
+      'general merchandise',
+      'GeneralMerchandise',
+      'generalmerchandise',
+      'general-merchandise',
+    ],
+  },
+}
 
 const normalizeText = (value) =>
   String(value ?? '').trim()
@@ -20,7 +66,7 @@ const normalizeCategory = (value) => {
     .replace(/\s+/g, ' ')
     .trim()
 
-  const categoryAliases = {
+  const aliases = {
     health: 'health',
     healthy: 'health',
     healt: 'health',
@@ -38,54 +84,75 @@ const normalizeCategory = (value) => {
   }
 
   return (
-    categoryAliases[normalizedValue] ||
+    aliases[normalizedValue] ||
     normalizedValue
   )
 }
 
-const getCanonicalCategoryName = (value) => {
+const getCategoryConfig = (value) => {
   const normalizedCategory =
     normalizeCategory(value)
 
-  const categoryNames = {
-    health: 'Health',
-    'personal care': 'Personal Care',
-    'hair care': 'Hair Care',
-    'general merchandise':
-      'General Merchandise',
-  }
-
   return (
-    categoryNames[normalizedCategory] ||
-    normalizeText(value)
+    CATEGORY_CONFIG[
+      normalizedCategory
+    ] || {
+      canonicalName:
+        normalizeText(value),
+      aliases: [
+        normalizeText(value),
+      ].filter(Boolean),
+    }
   )
 }
 
-const normalizeCorrectAnswer = (value) => {
-  const normalizedValue = normalizeText(value)
-    .toUpperCase()
-    .replace(/\s+/g, '')
+const getCanonicalCategoryName = (
+  value,
+) =>
+  getCategoryConfig(value)
+    .canonicalName
 
-  if (ANSWER_LETTERS.includes(normalizedValue)) {
+const normalizeCorrectAnswer = (
+  value,
+) => {
+  const normalizedValue =
+    normalizeText(value)
+      .toUpperCase()
+      .replace(/\s+/g, '')
+
+  if (
+    ANSWER_LETTERS.includes(
+      normalizedValue,
+    )
+  ) {
     return normalizedValue
   }
 
-  const numericValue = Number(normalizedValue)
+  const numericValue =
+    Number(normalizedValue)
 
   if (
-    Number.isInteger(numericValue) &&
+    Number.isInteger(
+      numericValue,
+    ) &&
     numericValue >= 0 &&
     numericValue <= 3
   ) {
-    return ANSWER_LETTERS[numericValue]
+    return ANSWER_LETTERS[
+      numericValue
+    ]
   }
 
   if (
-    Number.isInteger(numericValue) &&
+    Number.isInteger(
+      numericValue,
+    ) &&
     numericValue >= 1 &&
     numericValue <= 4
   ) {
-    return ANSWER_LETTERS[numericValue - 1]
+    return ANSWER_LETTERS[
+      numericValue - 1
+    ]
   }
 
   return ''
@@ -96,77 +163,176 @@ const normalizeOptions = (
   correctAnswer,
 ) => {
   const normalizedCorrectAnswer =
-    normalizeCorrectAnswer(correctAnswer)
+    normalizeCorrectAnswer(
+      correctAnswer,
+    )
 
-  const sourceOptions = Array.isArray(options)
-    ? options
-    : []
+  const sourceOptions =
+    Array.isArray(options)
+      ? options
+      : []
 
   return ANSWER_LETTERS.map(
     (letter, index) => {
       const sourceOption =
         sourceOptions[index]
 
-      const optionText =
-        typeof sourceOption === 'string'
-          ? normalizeText(sourceOption)
+      const text =
+        typeof sourceOption ===
+        'string'
+          ? normalizeText(
+              sourceOption,
+            )
           : normalizeText(
               sourceOption?.text ??
                 sourceOption?.label ??
                 sourceOption?.value,
             )
 
-      const optionIsCorrect =
-        typeof sourceOption?.isCorrect ===
+      const isCorrect =
+        typeof sourceOption
+          ?.isCorrect ===
         'boolean'
           ? sourceOption.isCorrect
-          : letter === normalizedCorrectAnswer
+          : letter ===
+            normalizedCorrectAnswer
 
       return {
-        text: optionText,
-        isCorrect: optionIsCorrect,
+        text,
+        isCorrect,
       }
     },
   )
 }
 
-export async function uploadQuestions(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) {
+const normalizeQuestionDocument = (
+  documentSnapshot,
+) => {
+  const data =
+    documentSnapshot.data()
+
+  const correctAnswer =
+    normalizeCorrectAnswer(
+      data.correctAnswer,
+    )
+
+  return {
+    id: documentSnapshot.id,
+    ...data,
+    category: normalizeText(
+      data.category,
+    ),
+    question: normalizeText(
+      data.question,
+    ),
+    correctAnswer,
+    options: normalizeOptions(
+      data.options,
+      correctAnswer,
+    ),
+  }
+}
+
+const isValidQuestion = (
+  question,
+  requestedCategory,
+) => {
+  const questionCategory =
+    normalizeCategory(
+      question.category,
+    )
+
+  const hasValidOptions =
+    Array.isArray(
+      question.options,
+    ) &&
+    question.options.length ===
+      4 &&
+    question.options.every(
+      (option) =>
+        Boolean(
+          normalizeText(
+            option.text,
+          ),
+        ),
+    )
+
+  const correctOptionCount =
+    question.options.filter(
+      (option) =>
+        option.isCorrect === true,
+    ).length
+
+  return (
+    question.active !== false &&
+    questionCategory ===
+      requestedCategory &&
+    Boolean(
+      normalizeText(
+        question.question,
+      ),
+    ) &&
+    hasValidOptions &&
+    correctOptionCount === 1
+  )
+}
+
+export async function uploadQuestions(
+  rows,
+) {
+  if (
+    !Array.isArray(rows) ||
+    rows.length === 0
+  ) {
     throw new Error(
       'Yüklenecek geçerli soru bulunamadı.',
     )
   }
 
-  const validRows = rows.filter((row) => {
-    const category = normalizeText(
-      row?.kategori,
-    )
+  const validRows = rows.filter(
+    (row) => {
+      const category =
+        normalizeText(
+          row?.kategori,
+        )
 
-    const question = normalizeText(
-      row?.soru,
-    )
+      const question =
+        normalizeText(
+          row?.soru,
+        )
 
-    const options = [
-      normalizeText(row?.secenek_a),
-      normalizeText(row?.secenek_b),
-      normalizeText(row?.secenek_c),
-      normalizeText(row?.secenek_d),
-    ]
+      const options = [
+        normalizeText(
+          row?.secenek_a,
+        ),
+        normalizeText(
+          row?.secenek_b,
+        ),
+        normalizeText(
+          row?.secenek_c,
+        ),
+        normalizeText(
+          row?.secenek_d,
+        ),
+      ]
 
-    const correctAnswer =
-      normalizeCorrectAnswer(
-        row?.dogru_secenek,
+      const correctAnswer =
+        normalizeCorrectAnswer(
+          row?.dogru_secenek,
+        )
+
+      return (
+        category &&
+        question &&
+        options.every(Boolean) &&
+        correctAnswer
       )
+    },
+  )
 
-    return (
-      category &&
-      question &&
-      options.every(Boolean) &&
-      correctAnswer
-    )
-  })
-
-  if (validRows.length === 0) {
+  if (
+    validRows.length === 0
+  ) {
     throw new Error(
       'Excel dosyasında geçerli soru bulunamadı.',
     )
@@ -180,12 +346,14 @@ export async function uploadQuestions(rows) {
     start < validRows.length;
     start += batchSize
   ) {
-    const chunk = validRows.slice(
-      start,
-      start + batchSize,
-    )
+    const chunk =
+      validRows.slice(
+        start,
+        start + batchSize,
+      )
 
-    const batch = writeBatch(db)
+    const batch =
+      writeBatch(db)
 
     chunk.forEach((row) => {
       const questionRef = doc(
@@ -195,43 +363,65 @@ export async function uploadQuestions(rows) {
         ),
       )
 
+      const category =
+        getCanonicalCategoryName(
+          row.kategori,
+        )
+
       const correctAnswer =
         normalizeCorrectAnswer(
           row.dogru_secenek,
         )
 
       const optionTexts = [
-        normalizeText(row.secenek_a),
-        normalizeText(row.secenek_b),
-        normalizeText(row.secenek_c),
-        normalizeText(row.secenek_d),
+        normalizeText(
+          row.secenek_a,
+        ),
+        normalizeText(
+          row.secenek_b,
+        ),
+        normalizeText(
+          row.secenek_c,
+        ),
+        normalizeText(
+          row.secenek_d,
+        ),
       ]
 
       batch.set(questionRef, {
-        category:
-          getCanonicalCategoryName(
-            row.kategori,
+        category,
+        categoryKey:
+          normalizeCategory(
+            category,
           ),
-        question: normalizeText(row.soru),
-        options: optionTexts.map(
-          (text, index) => ({
-            text,
-            isCorrect:
-              ANSWER_LETTERS[index] ===
-              correctAnswer,
-          }),
-        ),
+        question:
+          normalizeText(row.soru),
+        options:
+          optionTexts.map(
+            (text, index) => ({
+              text,
+              isCorrect:
+                ANSWER_LETTERS[
+                  index
+                ] ===
+                correctAnswer,
+            }),
+          ),
         correctAnswer,
-        explanation: normalizeText(
-          row.aciklama,
-        ),
+        explanation:
+          normalizeText(
+            row.aciklama,
+          ),
         active: true,
-        createdAt: serverTimestamp(),
+        createdAt:
+          serverTimestamp(),
       })
     })
 
     await batch.commit()
-    uploadedCount += chunk.length
+
+    uploadedCount +=
+      chunk.length
   }
 
   return uploadedCount
@@ -240,72 +430,65 @@ export async function uploadQuestions(rows) {
 export async function getQuestionsByCategory(
   category,
 ) {
-  const snapshot = await getDocs(
-    collection(
-      db,
-      QUESTIONS_COLLECTION,
-    ),
-  )
-
-  const normalizedRequestedCategory =
+  const requestedCategory =
     normalizeCategory(category)
 
+  const categoryConfig =
+    getCategoryConfig(category)
+
+  const uniqueAliases = [
+    ...new Set(
+      categoryConfig.aliases
+        .map(normalizeText)
+        .filter(Boolean),
+    ),
+  ].slice(0, 30)
+
+  let snapshot
+
+  try {
+    snapshot = await getDocs(
+      query(
+        collection(
+          db,
+          QUESTIONS_COLLECTION,
+        ),
+        where(
+          'category',
+          'in',
+          uniqueAliases,
+        ),
+      ),
+    )
+  } catch (queryError) {
+    console.warn(
+      'Kategori sorgusu çalışmadı, categoryKey sorgusu deneniyor:',
+      queryError,
+    )
+
+    snapshot = await getDocs(
+      query(
+        collection(
+          db,
+          QUESTIONS_COLLECTION,
+        ),
+        where(
+          'categoryKey',
+          '==',
+          requestedCategory,
+        ),
+      ),
+    )
+  }
+
   return snapshot.docs
-    .map((document) => {
-      const data = document.data()
-
-      const correctAnswer =
-        normalizeCorrectAnswer(
-          data.correctAnswer,
-        )
-
-      return {
-        id: document.id,
-        ...data,
-        category: normalizeText(
-          data.category,
-        ),
-        question: normalizeText(
-          data.question,
-        ),
-        correctAnswer,
-        options: normalizeOptions(
-          data.options,
-          correctAnswer,
-        ),
-      }
-    })
-    .filter((question) => {
-      const normalizedQuestionCategory =
-        normalizeCategory(
-          question.category,
-        )
-
-      const hasValidOptions =
-        Array.isArray(question.options) &&
-        question.options.length === 4 &&
-        question.options.every(
-          (option) =>
-            normalizeText(option.text),
-        )
-
-      const hasCorrectOption =
-        question.options.some(
-          (option) =>
-            option.isCorrect === true,
-        )
-
-      return (
-        question.active !== false &&
-        normalizedQuestionCategory ===
-          normalizedRequestedCategory &&
-        Boolean(
-          normalizeText(
-            question.question,
-          ),
-        ) &&
-        hasValidOptions &&
-        hasCorrectOption
-      )
-    })
+    .map(
+      normalizeQuestionDocument,
+    )
+    .filter((question) =>
+      isValidQuestion(
+        question,
+        requestedCategory,
+      ),
+    )
 }
