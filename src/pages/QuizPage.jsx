@@ -20,6 +20,37 @@ import '../styles/quiz.css'
 
 const ANSWER_FEEDBACK_DELAY = 1500
 
+const ANSWER_COLORS = [
+  {
+    main: '#08b981',
+    light: '#31dda4',
+    border: 'rgba(8, 185, 129, 0.36)',
+    soft: 'rgba(8, 185, 129, 0.08)',
+    shadow: 'rgba(8, 185, 129, 0.24)',
+  },
+  {
+    main: '#168ff5',
+    light: '#40b1ff',
+    border: 'rgba(22, 143, 245, 0.33)',
+    soft: 'rgba(22, 143, 245, 0.08)',
+    shadow: 'rgba(22, 143, 245, 0.22)',
+  },
+  {
+    main: '#8d5cf6',
+    light: '#ab82ff',
+    border: 'rgba(141, 92, 246, 0.32)',
+    soft: 'rgba(141, 92, 246, 0.08)',
+    shadow: 'rgba(141, 92, 246, 0.22)',
+  },
+  {
+    main: '#ff8709',
+    light: '#ffa43c',
+    border: 'rgba(255, 135, 9, 0.34)',
+    soft: 'rgba(255, 135, 9, 0.08)',
+    shadow: 'rgba(255, 135, 9, 0.22)',
+  },
+]
+
 function QuizPage() {
   const navigate = useNavigate()
   const { categoryId } = useParams()
@@ -356,6 +387,157 @@ function QuizPage() {
     return 'answer-option-disabled'
   }
 
+  const getAnswerVisuals = (
+    option,
+    index,
+  ) => {
+    const baseColor =
+      ANSWER_COLORS[index] ||
+      ANSWER_COLORS[0]
+
+    const isSelected =
+      selectedAnswer === index
+
+    const isRevealed =
+      selectedAnswer !== undefined
+
+    if (isRevealed && option.isCorrect) {
+      return {
+        card: {
+          opacity: 1,
+          transform: 'scale(1.012)',
+          border:
+            '3px solid rgba(4, 178, 111, 0.98)',
+          borderLeft:
+            '9px solid #04b26f',
+          color: '#06412f',
+          background:
+            'linear-gradient(145deg, #f5fff9 0%, #dcfbed 100%)',
+          boxShadow:
+            '0 18px 32px rgba(2, 164, 103, 0.25), 0 0 0 4px rgba(24, 218, 145, 0.14), inset 0 1px 0 #ffffff',
+        },
+        letter: {
+          color: '#ffffff',
+          background:
+            'linear-gradient(145deg, #38e5a1 0%, #04ad6c 100%)',
+          boxShadow:
+            '0 12px 24px rgba(4, 178, 111, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+        },
+        check: {
+          color: '#ffffff',
+          border: '0',
+          background:
+            'linear-gradient(145deg, #38e5a1, #04ad6c)',
+          boxShadow:
+            '0 8px 18px rgba(4, 178, 111, 0.34)',
+        },
+        textColor: '#063f2f',
+      }
+    }
+
+    if (
+      isRevealed &&
+      isSelected &&
+      !option.isCorrect
+    ) {
+      return {
+        card: {
+          opacity: 1,
+          transform: 'scale(1.012)',
+          border:
+            '3px solid rgba(235, 56, 86, 0.98)',
+          borderLeft:
+            '9px solid #eb3856',
+          color: '#71142a',
+          background:
+            'linear-gradient(145deg, #fff7f9 0%, #ffe1e8 100%)',
+          boxShadow:
+            '0 18px 32px rgba(224, 46, 78, 0.22), 0 0 0 4px rgba(239, 63, 95, 0.12), inset 0 1px 0 #ffffff',
+        },
+        letter: {
+          color: '#ffffff',
+          background:
+            'linear-gradient(145deg, #ff758c 0%, #e93455 100%)',
+          boxShadow:
+            '0 12px 24px rgba(235, 56, 86, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.38)',
+        },
+        check: {
+          color: '#ffffff',
+          border: '0',
+          background:
+            'linear-gradient(145deg, #ff758c, #e93455)',
+          boxShadow:
+            '0 8px 18px rgba(235, 56, 86, 0.34)',
+        },
+        textColor: '#71142a',
+      }
+    }
+
+    if (isRevealed) {
+      return {
+        card: {
+          opacity: 0.48,
+          transform: 'scale(0.992)',
+          border:
+            '2px solid rgba(116, 137, 160, 0.18)',
+          borderLeft:
+            '6px solid rgba(116, 137, 160, 0.3)',
+          background:
+            'linear-gradient(145deg, rgba(248, 250, 253, 0.9), rgba(234, 240, 247, 0.86))',
+          boxShadow:
+            '0 7px 15px rgba(20, 56, 92, 0.05)',
+          filter: 'saturate(0.45)',
+        },
+        letter: {
+          color: '#ffffff',
+          background:
+            'linear-gradient(145deg, #aebdca, #8296aa)',
+          boxShadow:
+            '0 7px 15px rgba(60, 83, 105, 0.14)',
+        },
+        check: {
+          color: '#91a1b0',
+          border:
+            '2px solid rgba(120, 142, 162, 0.32)',
+          background: 'rgba(255, 255, 255, 0.58)',
+          boxShadow: 'none',
+        },
+        textColor: '#647589',
+      }
+    }
+
+    return {
+      card: {
+        opacity: 1,
+        transform: 'scale(1)',
+        border:
+          `2px solid ${baseColor.border}`,
+        borderLeft:
+          `7px solid ${baseColor.main}`,
+        background:
+          `radial-gradient(circle at 78% 130%, ${baseColor.soft} 0%, transparent 50%), linear-gradient(145deg, #ffffff 0%, #f9fcff 100%)`,
+        boxShadow:
+          '0 12px 24px rgba(9, 54, 101, 0.09), 0 3px 9px rgba(6, 65, 111, 0.06), inset 0 1px 0 #ffffff',
+      },
+      letter: {
+        color: '#ffffff',
+        background:
+          `linear-gradient(145deg, ${baseColor.light} 0%, ${baseColor.main} 100%)`,
+        boxShadow:
+          `0 11px 22px ${baseColor.shadow}, inset 0 1px 0 rgba(255, 255, 255, 0.38)`,
+      },
+      check: {
+        color: baseColor.main,
+        border:
+          `3px solid ${baseColor.main}`,
+        background: 'rgba(255, 255, 255, 0.76)',
+        boxShadow:
+          `0 4px 12px ${baseColor.soft}`,
+      },
+      textColor: '#062653',
+    }
+  }
+
   const selectedOption =
     selectedAnswer !== undefined
       ? currentQuestion.options[
@@ -481,7 +663,7 @@ function QuizPage() {
               overflow: 'visible',
               borderRadius: '999px',
               background:
-                'linear-gradient(90deg, #9BF05D 0%, #54E576 30%, #17D394 65%, #08B99A 100%)',
+                'linear-gradient(90deg, #9bf05d 0%, #54e576 30%, #17d394 65%, #08b99a 100%)',
               boxShadow:
                 '0 0 15px rgba(44, 232, 147, 0.62), 0 3px 8px rgba(2, 143, 108, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.62)',
               transition:
@@ -492,7 +674,7 @@ function QuizPage() {
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                inset: '0',
+                inset: 0,
                 overflow: 'hidden',
                 borderRadius: '999px',
                 background:
@@ -513,7 +695,7 @@ function QuizPage() {
                 border:
                   '3px solid rgba(255, 255, 255, 0.96)',
                 background:
-                  'linear-gradient(145deg, #50E99E, #06B98C)',
+                  'linear-gradient(145deg, #50e99e, #06b98c)',
                 boxShadow:
                   '0 0 0 3px rgba(33, 222, 145, 0.22), 0 3px 9px rgba(0, 105, 82, 0.3)',
               }}
@@ -526,11 +708,21 @@ function QuizPage() {
             Soru {currentIndex + 1}
           </span>
 
-          <h1>
+          <h1
+            style={{
+              fontWeight: 900,
+              letterSpacing: '-0.045em',
+            }}
+          >
             {currentQuestion.question}
           </h1>
 
-          <div className="answer-list">
+          <div
+            className="answer-list"
+            style={{
+              gap: 'clamp(9px, 1.25vh, 14px)',
+            }}
+          >
             {currentQuestion.options.map(
               (option, index) => {
                 const isSelected =
@@ -541,6 +733,12 @@ function QuizPage() {
                     65 + index,
                   )
 
+                const visuals =
+                  getAnswerVisuals(
+                    option,
+                    index,
+                  )
+
                 return (
                   <button
                     type="button"
@@ -549,6 +747,21 @@ function QuizPage() {
                       option,
                       index,
                     )}`}
+                    style={{
+                      minHeight:
+                        'clamp(68px, 9vh, 96px)',
+                      padding:
+                        'clamp(8px, 1.1vh, 12px) clamp(15px, 3.5vw, 24px)',
+                      borderRadius:
+                        'clamp(20px, 2.7vh, 27px)',
+                      gridTemplateColumns:
+                        'clamp(54px, 7vh, 70px) minmax(0, 1fr) clamp(36px, 4.7vh, 46px)',
+                      gap:
+                        'clamp(15px, 3.5vw, 24px)',
+                      transition:
+                        'transform 180ms ease, opacity 180ms ease, filter 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease',
+                      ...visuals.card,
+                    }}
                     disabled={
                       isAnswerLocked ||
                       isSaving
@@ -562,25 +775,72 @@ function QuizPage() {
                     <span
                       className="answer-letter"
                       aria-hidden="true"
+                      style={{
+                        width:
+                          'clamp(54px, 7vh, 70px)',
+                        height:
+                          'clamp(54px, 7vh, 70px)',
+                        borderRadius:
+                          'clamp(17px, 2.2vh, 22px)',
+                        fontSize:
+                          'clamp(29px, 3.8vh, 40px)',
+                        fontWeight: 900,
+                        flexShrink: 0,
+                        ...visuals.letter,
+                      }}
                     >
                       {answerLetter}
                     </span>
 
-                    <span className="answer-text">
+                    <span
+                      className="answer-text"
+                      style={{
+                        color:
+                          visuals.textColor,
+                        fontSize:
+                          'clamp(18px, 2.55vh, 27px)',
+                        fontWeight: 900,
+                        lineHeight: 1.14,
+                        letterSpacing:
+                          '-0.032em',
+                        textShadow:
+                          '0 1px 0 rgba(255, 255, 255, 0.5)',
+                      }}
+                    >
                       {option.text}
                     </span>
 
                     <span
                       className="answer-check"
                       aria-hidden="true"
+                      style={{
+                        width:
+                          'clamp(36px, 4.7vh, 46px)',
+                        height:
+                          'clamp(36px, 4.7vh, 46px)',
+                        flexShrink: 0,
+                        ...visuals.check,
+                      }}
                     >
                       {selectedAnswer !==
                         undefined &&
                       option.isCorrect ? (
-                        <FiCheck />
+                        <FiCheck
+                          style={{
+                            width: '65%',
+                            height: '65%',
+                            strokeWidth: 3.5,
+                          }}
+                        />
                       ) : isSelected &&
                         !option.isCorrect ? (
-                        <FiX />
+                        <FiX
+                          style={{
+                            width: '65%',
+                            height: '65%',
+                            strokeWidth: 3.5,
+                          }}
+                        />
                       ) : null}
                     </span>
                   </button>
