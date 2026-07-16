@@ -68,15 +68,24 @@ const CATEGORY_CONFIG = {
   },
 }
 
-const normalizeText = (value) =>
-  String(value ?? '').trim()
+const preserveText = (value) =>
+  value === null || value === undefined
+    ? ''
+    : String(value)
+
+const trimmedText = (value) =>
+  preserveText(value).trim()
+
+const hasContent = (value) =>
+  trimmedText(value).length > 0
 
 const normalizeCategory = (value) => {
-  const normalizedValue = normalizeText(value)
-    .toLocaleLowerCase('tr-TR')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  const normalizedValue =
+    trimmedText(value)
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
 
   const aliases = {
     health: 'health',
@@ -97,7 +106,10 @@ const normalizeCategory = (value) => {
       'general merchandise',
   }
 
-  return aliases[normalizedValue] || normalizedValue
+  return (
+    aliases[normalizedValue] ||
+    normalizedValue
+  )
 }
 
 const getCategoryConfig = (value) => {
@@ -106,9 +118,9 @@ const getCategoryConfig = (value) => {
 
   return (
     CATEGORY_CONFIG[categoryKey] || {
-      name: normalizeText(value),
+      name: trimmedText(value),
       aliases: [
-        normalizeText(value),
+        trimmedText(value),
       ].filter(Boolean),
     }
   )
@@ -119,18 +131,27 @@ const normalizeCorrectAnswer = (value) => {
     typeof value === 'number' &&
     Number.isInteger(value)
   ) {
-    if (value >= 0 && value <= 3) {
+    if (
+      value >= 0 &&
+      value <= 3
+    ) {
       return ANSWER_LETTERS[value]
     }
 
-    if (value >= 1 && value <= 4) {
-      return ANSWER_LETTERS[value - 1]
+    if (
+      value >= 1 &&
+      value <= 4
+    ) {
+      return ANSWER_LETTERS[
+        value - 1
+      ]
     }
   }
 
-  const normalizedValue = normalizeText(value)
-    .toUpperCase()
-    .replace(/\s+/g, '')
+  const normalizedValue =
+    trimmedText(value)
+      .toUpperCase()
+      .replace(/\s+/g, '')
 
   if (
     ANSWER_LETTERS.includes(
@@ -144,15 +165,21 @@ const normalizeCorrectAnswer = (value) => {
     Number(normalizedValue)
 
   if (
-    Number.isInteger(numericValue) &&
+    Number.isInteger(
+      numericValue,
+    ) &&
     numericValue >= 0 &&
     numericValue <= 3
   ) {
-    return ANSWER_LETTERS[numericValue]
+    return ANSWER_LETTERS[
+      numericValue
+    ]
   }
 
   if (
-    Number.isInteger(numericValue) &&
+    Number.isInteger(
+      numericValue,
+    ) &&
     numericValue >= 1 &&
     numericValue <= 4
   ) {
@@ -170,14 +197,14 @@ const getOptionText = (option) => {
     typeof option === 'object' &&
     !Array.isArray(option)
   ) {
-    return normalizeText(
+    return preserveText(
       option.text ??
         option.label ??
         option.value,
     )
   }
 
-  return normalizeText(option)
+  return preserveText(option)
 }
 
 const normalizeOptions = (
@@ -243,7 +270,7 @@ const normalizeQuestionDocument = (
   return {
     id: documentSnapshot.id,
     ...data,
-    category: normalizeText(
+    category: preserveText(
       data.category ??
         data.kategori,
     ),
@@ -253,7 +280,7 @@ const normalizeQuestionDocument = (
           data.category ??
           data.kategori,
       ),
-    question: normalizeText(
+    question: preserveText(
       data.question ??
         data.soru,
     ),
@@ -284,15 +311,11 @@ const isValidQuestion = (
     question.active !== false &&
     question.categoryKey ===
       requestedCategoryKey &&
-    Boolean(question.question) &&
+    hasContent(question.question) &&
     options.length === 4 &&
     options.every(
       (option) =>
-        Boolean(
-          normalizeText(
-            option.text,
-          ),
-        ),
+        hasContent(option.text),
     ) &&
     correctOptionCount === 1
   )
@@ -317,7 +340,9 @@ const mergeSnapshots = (
     },
   )
 
-  return [...documentMap.values()]
+  return [
+    ...documentMap.values(),
+  ]
 }
 
 export async function uploadQuestions(
@@ -335,26 +360,26 @@ export async function uploadQuestions(
   const validRows = rows.filter(
     (row) => {
       const category =
-        normalizeText(
+        trimmedText(
           row?.kategori,
         )
 
       const question =
-        normalizeText(
+        preserveText(
           row?.soru,
         )
 
       const options = [
-        normalizeText(
+        preserveText(
           row?.secenek_a,
         ),
-        normalizeText(
+        preserveText(
           row?.secenek_b,
         ),
-        normalizeText(
+        preserveText(
           row?.secenek_c,
         ),
-        normalizeText(
+        preserveText(
           row?.secenek_d,
         ),
       ]
@@ -366,8 +391,10 @@ export async function uploadQuestions(
 
       return (
         category &&
-        question &&
-        options.every(Boolean) &&
+        hasContent(question) &&
+        options.every(
+          hasContent,
+        ) &&
         correctAnswer
       )
     },
@@ -424,16 +451,16 @@ export async function uploadQuestions(
         )
 
       const optionTexts = [
-        normalizeText(
+        preserveText(
           row.secenek_a,
         ),
-        normalizeText(
+        preserveText(
           row.secenek_b,
         ),
-        normalizeText(
+        preserveText(
           row.secenek_c,
         ),
-        normalizeText(
+        preserveText(
           row.secenek_d,
         ),
       ]
@@ -443,10 +470,12 @@ export async function uploadQuestions(
         {
           category,
           categoryKey,
+
           question:
-            normalizeText(
+            preserveText(
               row.soru,
             ),
+
           options:
             optionTexts.map(
               (text, index) => ({
@@ -458,14 +487,19 @@ export async function uploadQuestions(
                   correctAnswer,
               }),
             ),
+
           correctAnswer,
+
           explanation:
-            normalizeText(
+            preserveText(
               row.aciklama,
             ),
+
           active: true,
+
           createdAt:
             serverTimestamp(),
+
           updatedAt:
             serverTimestamp(),
         },
@@ -521,7 +555,7 @@ export async function getQuestionsByCategory(
   const categoryAliases = [
     ...new Set(
       categoryConfig.aliases
-        .map(normalizeText)
+        .map(trimmedText)
         .filter(Boolean),
     ),
   ].slice(0, 30)

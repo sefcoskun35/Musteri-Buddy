@@ -225,8 +225,13 @@ const prepareQuiz = (
     .slice(0, questionCount)
     .map((question) => ({
       ...question,
-      options: shuffleArray(
-        question.options,
+      options: question.options.map(
+        (option) => ({
+          ...option,
+          text: String(
+            option?.text ?? '',
+          ),
+        }),
       ),
     }))
 
