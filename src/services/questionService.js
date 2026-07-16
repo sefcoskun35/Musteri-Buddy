@@ -13,121 +13,94 @@ const QUESTIONS_COLLECTION = 'questions'
 const ANSWER_LETTERS = ['A', 'B', 'C', 'D']
 const BATCH_LIMIT = 450
 
-const CATEGORY_CONFIG = {
+const CATEGORY_DEFINITIONS = {
   health: {
     name: 'Health',
     aliases: [
-      'Health',
-      'HEALTH',
       'health',
-      'Healthy',
-      'HEALTHY',
       'healthy',
-      'Healt',
-      'HEALT',
       'healt',
     ],
   },
   'personal care': {
     name: 'Personal Care',
     aliases: [
-      'Personal Care',
-      'PERSONAL CARE',
       'personal care',
-      'PersonalCare',
-      'PERSONALCARE',
       'personalcare',
-      'Personel Care',
-      'PERSONEL CARE',
       'personel care',
-      'PersonelCare',
-      'PERSONELCARE',
       'personelcare',
     ],
   },
   'hair care': {
     name: 'Hair Care',
     aliases: [
-      'Hair Care',
-      'HAIR CARE',
       'hair care',
-      'HairCare',
-      'HAIRCARE',
       'haircare',
     ],
   },
   'general merchandise': {
     name: 'General Merchandise',
     aliases: [
-      'General Merchandise',
-      'GENERAL MERCHANDISE',
       'general merchandise',
-      'GeneralMerchandise',
-      'GENERALMERCHANDISE',
       'generalmerchandise',
     ],
   },
 }
 
-const preserveText = (value) =>
-  value === null || value === undefined
-    ? ''
-    : String(value)
+const preserveText = (value) => {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return ''
+  }
 
-const trimmedText = (value) =>
-  preserveText(value).trim()
+  return String(value)
+}
 
-const hasContent = (value) =>
-  trimmedText(value).length > 0
+const hasText = (value) =>
+  preserveText(value).trim().length > 0
 
-const normalizeCategory = (value) => {
+const normalizeCategoryKey = (value) => {
   const normalizedValue =
-    trimmedText(value)
+    preserveText(value)
+      .trim()
       .toLocaleLowerCase('tr-TR')
       .replace(/[_-]+/g, ' ')
       .replace(/\s+/g, ' ')
-      .trim()
 
-  const aliases = {
-    health: 'health',
-    healthy: 'health',
-    healt: 'health',
+  const matchedCategory =
+    Object.entries(
+      CATEGORY_DEFINITIONS,
+    ).find(
+      ([categoryKey, definition]) =>
+        categoryKey ===
+          normalizedValue ||
+        definition.aliases.includes(
+          normalizedValue,
+        ),
+    )
 
-    'personal care': 'personal care',
-    personalcare: 'personal care',
-    'personel care': 'personal care',
-    personelcare: 'personal care',
-
-    'hair care': 'hair care',
-    haircare: 'hair care',
-
-    'general merchandise':
-      'general merchandise',
-    generalmerchandise:
-      'general merchandise',
-  }
-
-  return (
-    aliases[normalizedValue] ||
-    normalizedValue
-  )
+  return matchedCategory
+    ? matchedCategory[0]
+    : normalizedValue
 }
 
-const getCategoryConfig = (value) => {
+const getCategoryName = (value) => {
   const categoryKey =
-    normalizeCategory(value)
+    normalizeCategoryKey(value)
 
   return (
-    CATEGORY_CONFIG[categoryKey] || {
-      name: trimmedText(value),
-      aliases: [
-        trimmedText(value),
-      ].filter(Boolean),
-    }
+    CATEGORY_DEFINITIONS[
+      categoryKey
+    ]?.name ||
+    preserveText(value).trim()
   )
 }
 
-const normalizeCorrectAnswer = (value) => {
+const normalizeCorrectAnswer = (
+  value,
+) => {
   if (
     typeof value === 'number' &&
     Number.isInteger(value)
@@ -150,7 +123,8 @@ const normalizeCorrectAnswer = (value) => {
   }
 
   const normalizedValue =
-    trimmedText(value)
+    preserveText(value)
+      .trim()
       .toUpperCase()
       .replace(/\s+/g, '')
 
@@ -166,22 +140,26 @@ const normalizeCorrectAnswer = (value) => {
     Number(normalizedValue)
 
   if (
-    Number.isInteger(numericValue) &&
-    numericValue >= 0 &&
-    numericValue <= 3
-  ) {
-    return ANSWER_LETTERS[
-      numericValue
-    ]
-  }
-
-  if (
-    Number.isInteger(numericValue) &&
+    Number.isInteger(
+      numericValue,
+    ) &&
     numericValue >= 1 &&
     numericValue <= 4
   ) {
     return ANSWER_LETTERS[
       numericValue - 1
+    ]
+  }
+
+  if (
+    Number.isInteger(
+      numericValue,
+    ) &&
+    numericValue >= 0 &&
+    numericValue <= 3
+  ) {
+    return ANSWER_LETTERS[
+      numericValue
     ]
   }
 
@@ -204,23 +182,20 @@ const getOptionText = (option) => {
   return preserveText(option)
 }
 
-const normalizeOptions = (
+const createOptions = (
   data,
   correctAnswer,
 ) => {
-  let sourceOptions =
-    Array.isArray(data.options)
+  const sourceOptions =
+    Array.isArray(data.options) &&
+    data.options.length >= 4
       ? data.options
-      : []
-
-  if (sourceOptions.length < 4) {
-    sourceOptions = [
-      data.secenek_a,
-      data.secenek_b,
-      data.secenek_c,
-      data.secenek_d,
-    ]
-  }
+      : [
+          data.secenek_a,
+          data.secenek_b,
+          data.secenek_c,
+          data.secenek_d,
+        ]
 
   const correctIndex =
     ANSWER_LETTERS.indexOf(
@@ -232,7 +207,7 @@ const normalizeOptions = (
       const sourceOption =
         sourceOptions[index]
 
-      const objectIsCorrect =
+      const objectCorrect =
         sourceOption &&
         typeof sourceOption ===
           'object' &&
@@ -246,13 +221,13 @@ const normalizeOptions = (
         isCorrect:
           correctIndex >= 0
             ? index === correctIndex
-            : objectIsCorrect,
+            : objectCorrect,
       }
     },
   )
 }
 
-const normalizeQuestionDocument = (
+const mapQuestionDocument = (
   documentSnapshot,
 ) => {
   const data =
@@ -274,7 +249,7 @@ const normalizeQuestionDocument = (
     ),
 
     categoryKey:
-      normalizeCategory(
+      normalizeCategoryKey(
         data.categoryKey ??
           data.category ??
           data.kategori,
@@ -287,7 +262,7 @@ const normalizeQuestionDocument = (
 
     correctAnswer,
 
-    options: normalizeOptions(
+    options: createOptions(
       data,
       correctAnswer,
     ),
@@ -313,67 +288,32 @@ const isValidQuestion = (
     question.active !== false &&
     question.categoryKey ===
       requestedCategoryKey &&
-    hasContent(question.question) &&
+    hasText(question.question) &&
     options.length === 4 &&
-    options.every(
-      (option) =>
-        hasContent(option.text),
+    options.every((option) =>
+      hasText(option.text),
     ) &&
     correctOptionCount === 1
   )
 }
 
-const mergeSnapshots = (
-  snapshots,
-) => {
-  const documentMap =
-    new Map()
-
-  snapshots.forEach(
-    (snapshot) => {
-      snapshot?.docs?.forEach(
-        (documentSnapshot) => {
-          documentMap.set(
-            documentSnapshot.id,
-            documentSnapshot,
-          )
-        },
-      )
-    },
-  )
-
-  return [
-    ...documentMap.values(),
-  ]
-}
-
 const deleteDocumentsInBatches =
-  async (documentSnapshots) => {
-    if (
-      !Array.isArray(
-        documentSnapshots,
-      ) ||
-      documentSnapshots.length === 0
-    ) {
-      return 0
-    }
-
+  async (documents) => {
     let deletedCount = 0
 
     for (
       let start = 0;
-      start <
-      documentSnapshots.length;
+      start < documents.length;
       start += BATCH_LIMIT
     ) {
+      const batch =
+        writeBatch(db)
+
       const chunk =
-        documentSnapshots.slice(
+        documents.slice(
           start,
           start + BATCH_LIMIT,
         )
-
-      const batch =
-        writeBatch(db)
 
       chunk.forEach(
         (documentSnapshot) => {
@@ -392,118 +332,34 @@ const deleteDocumentsInBatches =
     return deletedCount
   }
 
-const getExistingCategoryDocuments =
+const getCategoryDocuments =
   async (categoryKey) => {
-    const categoryConfig =
-      CATEGORY_CONFIG[categoryKey]
-
-    const snapshots = []
-
-    try {
-      const categoryKeySnapshot =
-        await getDocs(
-          query(
-            collection(
-              db,
-              QUESTIONS_COLLECTION,
-            ),
-            where(
-              'categoryKey',
-              '==',
-              categoryKey,
-            ),
-          ),
-        )
-
-      snapshots.push(
-        categoryKeySnapshot,
+    const snapshot =
+      await getDocs(
+        collection(
+          db,
+          QUESTIONS_COLLECTION,
+        ),
       )
-    } catch (error) {
-      console.warn(
-        'Kategori anahtarı sorgulanamadı:',
-        error,
-      )
-    }
 
-    const aliases = [
-      ...new Set(
-        (
-          categoryConfig?.aliases ||
-          []
-        )
-          .map(trimmedText)
-          .filter(Boolean),
-      ),
-    ].slice(0, 30)
+    return snapshot.docs.filter(
+      (documentSnapshot) => {
+        const data =
+          documentSnapshot.data()
 
-    if (aliases.length > 0) {
-      try {
-        const aliasSnapshot =
-          await getDocs(
-            query(
-              collection(
-                db,
-                QUESTIONS_COLLECTION,
-              ),
-              where(
-                'category',
-                'in',
-                aliases,
-              ),
-            ),
+        const documentCategoryKey =
+          normalizeCategoryKey(
+            data.categoryKey ??
+              data.category ??
+              data.kategori,
           )
 
-        snapshots.push(
-          aliasSnapshot,
+        return (
+          documentCategoryKey ===
+          categoryKey
         )
-      } catch (error) {
-        console.warn(
-          'Eski kategori kayıtları sorgulanamadı:',
-          error,
-        )
-      }
-    }
-
-    const mergedDocuments =
-      mergeSnapshots(snapshots)
-
-    if (
-      mergedDocuments.length > 0
-    ) {
-      return mergedDocuments
-    }
-
-    try {
-      const allSnapshot =
-        await getDocs(
-          collection(
-            db,
-            QUESTIONS_COLLECTION,
-          ),
-        )
-
-      return allSnapshot.docs.filter(
-        (documentSnapshot) => {
-          const data =
-            documentSnapshot.data()
-
-          return (
-            normalizeCategory(
-              data.categoryKey ??
-                data.category ??
-                data.kategori,
-            ) === categoryKey
-          )
-        },
-      )
-    } catch (error) {
-      console.warn(
-        'Kategori kayıtları genel sorguyla alınamadı:',
-        error,
-      )
-
-      return []
-    }
+      },
+    )
   }
 
 const replaceCategoryQuestions =
@@ -512,7 +368,7 @@ const replaceCategoryQuestions =
     categoryRows,
   ) => {
     const existingDocuments =
-      await getExistingCategoryDocuments(
+      await getCategoryDocuments(
         categoryKey,
       )
 
@@ -528,32 +384,16 @@ const replaceCategoryQuestions =
       categoryRows.length;
       start += BATCH_LIMIT
     ) {
+      const batch =
+        writeBatch(db)
+
       const chunk =
         categoryRows.slice(
           start,
           start + BATCH_LIMIT,
         )
 
-      const batch =
-        writeBatch(db)
-
       chunk.forEach((row) => {
-        const questionReference =
-          doc(
-            collection(
-              db,
-              QUESTIONS_COLLECTION,
-            ),
-          )
-
-        const categoryConfig =
-          getCategoryConfig(
-            row.kategori,
-          )
-
-        const category =
-          categoryConfig.name
-
         const correctAnswer =
           normalizeCorrectAnswer(
             row.dogru_secenek,
@@ -574,10 +414,22 @@ const replaceCategoryQuestions =
           ),
         ]
 
+        const questionReference =
+          doc(
+            collection(
+              db,
+              QUESTIONS_COLLECTION,
+            ),
+          )
+
         batch.set(
           questionReference,
           {
-            category,
+            category:
+              getCategoryName(
+                row.kategori,
+              ),
+
             categoryKey,
 
             question:
@@ -592,7 +444,6 @@ const replaceCategoryQuestions =
                   index,
                 ) => ({
                   text,
-
                   isCorrect:
                     ANSWER_LETTERS[
                       index
@@ -636,49 +487,25 @@ export async function uploadQuestions(
     rows.length === 0
   ) {
     throw new Error(
-      'Yüklenecek geçerli soru bulunamadı.',
+      'Yüklenecek soru bulunamadı.',
     )
   }
 
   const validRows = rows.filter(
     (row) => {
-      const category =
-        trimmedText(
-          row?.kategori,
-        )
-
-      const question =
-        preserveText(
-          row?.soru,
-        )
-
-      const options = [
-        preserveText(
-          row?.secenek_a,
-        ),
-        preserveText(
-          row?.secenek_b,
-        ),
-        preserveText(
-          row?.secenek_c,
-        ),
-        preserveText(
-          row?.secenek_d,
-        ),
-      ]
-
       const correctAnswer =
         normalizeCorrectAnswer(
           row?.dogru_secenek,
         )
 
       return (
-        category &&
-        hasContent(question) &&
-        options.every(
-          hasContent,
-        ) &&
-        correctAnswer
+        hasText(row?.kategori) &&
+        hasText(row?.soru) &&
+        hasText(row?.secenek_a) &&
+        hasText(row?.secenek_b) &&
+        hasText(row?.secenek_c) &&
+        hasText(row?.secenek_d) &&
+        Boolean(correctAnswer)
       )
     },
   )
@@ -696,13 +523,9 @@ export async function uploadQuestions(
 
   validRows.forEach((row) => {
     const categoryKey =
-      normalizeCategory(
+      normalizeCategoryKey(
         row.kategori,
       )
-
-    if (!categoryKey) {
-      return
-    }
 
     if (
       !categoryGroups.has(
@@ -720,30 +543,19 @@ export async function uploadQuestions(
       .push(row)
   })
 
-  if (
-    categoryGroups.size === 0
-  ) {
-    throw new Error(
-      'Excel dosyasında geçerli kategori bulunamadı.',
-    )
-  }
-
   let uploadedCount = 0
 
   for (
     const [
       categoryKey,
       categoryRows,
-    ] of categoryGroups.entries()
+    ] of categoryGroups
   ) {
-    const categoryUploadedCount =
+    uploadedCount +=
       await replaceCategoryQuestions(
         categoryKey,
         categoryRows,
       )
-
-    uploadedCount +=
-      categoryUploadedCount
   }
 
   return uploadedCount
@@ -753,15 +565,10 @@ export async function getQuestionsByCategory(
   category,
 ) {
   const requestedCategoryKey =
-    normalizeCategory(category)
-
-  const categoryConfig =
-    getCategoryConfig(category)
-
-  const snapshots = []
+    normalizeCategoryKey(category)
 
   try {
-    const categoryKeySnapshot =
+    const categorySnapshot =
       await getDocs(
         query(
           collection(
@@ -776,97 +583,40 @@ export async function getQuestionsByCategory(
         ),
       )
 
-    snapshots.push(
-      categoryKeySnapshot,
-    )
+    const categoryQuestions =
+      categorySnapshot.docs
+        .map(
+          mapQuestionDocument,
+        )
+        .filter((question) =>
+          isValidQuestion(
+            question,
+            requestedCategoryKey,
+          ),
+        )
+
+    if (
+      categoryQuestions.length > 0
+    ) {
+      return categoryQuestions
+    }
   } catch (error) {
     console.warn(
-      'categoryKey sorgusu çalışmadı:',
+      'Kategori sorgusu çalışmadı:',
       error,
     )
   }
 
-  const categoryAliases = [
-    ...new Set(
-      categoryConfig.aliases
-        .map(trimmedText)
-        .filter(Boolean),
-    ),
-  ].slice(0, 30)
-
-  if (
-    categoryAliases.length > 0
-  ) {
-    try {
-      const categorySnapshot =
-        await getDocs(
-          query(
-            collection(
-              db,
-              QUESTIONS_COLLECTION,
-            ),
-            where(
-              'category',
-              'in',
-              categoryAliases,
-            ),
-          ),
-        )
-
-      snapshots.push(
-        categorySnapshot,
-      )
-    } catch (error) {
-      console.warn(
-        'Eski kategori sorgusu çalışmadı:',
-        error,
-      )
-    }
-  }
-
-  let documents =
-    mergeSnapshots(snapshots)
-
-  if (
-    documents.length === 0
-  ) {
-    try {
-      const allSnapshot =
-        await getDocs(
-          collection(
-            db,
-            QUESTIONS_COLLECTION,
-          ),
-        )
-
-      documents =
-        allSnapshot.docs.filter(
-          (documentSnapshot) => {
-            const data =
-              documentSnapshot.data()
-
-            return (
-              normalizeCategory(
-                data.categoryKey ??
-                  data.category ??
-                  data.kategori,
-              ) ===
-              requestedCategoryKey
-            )
-          },
-        )
-    } catch (error) {
-      console.warn(
-        'Sorular genel sorguyla alınamadı:',
-        error,
-      )
-    }
-  }
-
-  return documents
-    .map(
-      normalizeQuestionDocument,
+  const allSnapshot =
+    await getDocs(
+      collection(
+        db,
+        QUESTIONS_COLLECTION,
+      ),
     )
+
+  return allSnapshot.docs
+    .map(mapQuestionDocument)
     .filter((question) =>
       isValidQuestion(
         question,
