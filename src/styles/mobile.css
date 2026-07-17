@@ -588,13 +588,14 @@ svg {
   .question-label {
     margin-bottom: 2px !important;
   }
-
-  .question-card h1 {
-    max-height: 2.6em !important;
-    margin-bottom: 5px !important;
-    font-size: 14px !important;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
+.question-card h1 {
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
+  margin-bottom: 8px !important;
+  font-size: 14px !important;
+  line-clamp: unset !important;
+  -webkit-line-clamp: unset !important;
   }
 
   .answer-list {
@@ -612,11 +613,12 @@ svg {
   }
 
   .answer-text {
-    font-size: 10.5px !important;
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-  }
-
+  font-size: 10.5px !important;
+  overflow: visible !important;
+  display: block !important;
+  line-clamp: unset !important;
+  -webkit-line-clamp: unset !important;
+}
   .quiz-selection-hint,
   .quiz-answer-feedback {
     padding: 5px 7px !important;
