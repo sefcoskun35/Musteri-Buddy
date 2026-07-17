@@ -14,6 +14,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore'
 import {
   FiAlertCircle,
@@ -40,6 +41,7 @@ import '../styles/question-management.css'
 
 const QUESTIONS_COLLECTION = 'questions'
 const PAGE_SIZE = 10
+const FIRESTORE_BATCH_LIMIT = 450
 const ANSWER_OPTIONS = ['A', 'B', 'C', 'D']
 
 const CATEGORY_OPTIONS = [
@@ -205,6 +207,8 @@ const normalizeExcelHeader = (
 
 function QuestionManagementPage() {
   const fileInputRef = useRef(null)
+  const notificationTimerRef =
+    useRef(null)
 
   const [questions, setQuestions] =
     useState([])
@@ -243,6 +247,14 @@ function QuestionManagementPage() {
 
   const [deleteTarget, setDeleteTarget] =
     useState(null)
+  const [
+    bulkDeleteTarget,
+    setBulkDeleteTarget,
+  ] = useState(null)
+  const [
+    bulkConfirmation,
+    setBulkConfirmation,
+  ] = useState('')
   const [deleting, setDeleting] =
     useState(false)
 
@@ -255,15 +267,37 @@ function QuestionManagementPage() {
     type,
     message,
   ) => {
+    if (
+      notificationTimerRef.current
+    ) {
+      window.clearTimeout(
+        notificationTimerRef.current,
+      )
+    }
+
     setNotification({
       type,
       message,
     })
 
-    window.setTimeout(() => {
-      setNotification(null)
-    }, 4500)
+    notificationTimerRef.current =
+      window.setTimeout(() => {
+        setNotification(null)
+      }, 4500)
   }
+
+  useEffect(
+    () => () => {
+      if (
+        notificationTimerRef.current
+      ) {
+        window.clearTimeout(
+          notificationTimerRef.current,
+        )
+      }
+    },
+    [],
+  )
 
   const loadQuestions = async ({
     silent = false,
@@ -482,6 +516,30 @@ function QuestionManagementPage() {
       searchTerm,
       categoryFilter,
       statusFilter,
+    ])
+
+  const categoryQuestions =
+    useMemo(() => {
+      if (
+        categoryFilter === 'all'
+      ) {
+        return []
+      }
+
+      const normalizedCategory =
+        normalizeSearchText(
+          categoryFilter,
+        )
+
+      return questions.filter(
+        (question) =>
+          normalizeSearchText(
+            question.category,
+          ) === normalizedCategory,
+      )
+    }, [
+      questions,
+      categoryFilter,
     ])
 
   const totalPages = Math.max(
@@ -916,6 +974,193 @@ function QuestionManagementPage() {
       }
     }
 
+  const openCategoryDeleteModal =
+    () => {
+      if (
+        categoryFilter ===
+          'all' ||
+        categoryQuestions.length === 0
+      ) {
+        return
+      }
+
+      setBulkConfirmation('')
+
+      setBulkDeleteTarget({
+        type: 'category',
+        category: categoryFilter,
+        questions:
+          categoryQuestions,
+        confirmationText:
+          categoryFilter,
+      })
+    }
+
+  const openAllDeleteModal = () => {
+    if (questions.length === 0) {
+      return
+    }
+
+    setBulkConfirmation('')
+
+    setBulkDeleteTarget({
+      type: 'all',
+      category: '',
+      questions,
+      confirmationText: 'SİL',
+    })
+  }
+
+  const closeBulkDeleteModal =
+    () => {
+      if (deleting) {
+        return
+      }
+
+      setBulkDeleteTarget(null)
+      setBulkConfirmation('')
+    }
+
+  const deleteQuestionsInBatches =
+    async (questionIds) => {
+      for (
+        let index = 0;
+        index < questionIds.length;
+        index +=
+          FIRESTORE_BATCH_LIMIT
+      ) {
+        const currentIds =
+          questionIds.slice(
+            index,
+            index +
+              FIRESTORE_BATCH_LIMIT,
+          )
+
+        const batch =
+          writeBatch(db)
+
+        currentIds.forEach(
+          (questionId) => {
+            batch.delete(
+              doc(
+                db,
+                QUESTIONS_COLLECTION,
+                questionId,
+              ),
+            )
+          },
+        )
+
+        await batch.commit()
+      }
+    }
+
+  const handleBulkDeleteQuestions =
+    async () => {
+      if (!bulkDeleteTarget) {
+        return
+      }
+
+      const confirmationText =
+        normalizeText(
+          bulkDeleteTarget
+            .confirmationText,
+        )
+
+      if (
+        normalizeText(
+          bulkConfirmation,
+        ) !== confirmationText
+      ) {
+        return
+      }
+
+      const targetQuestions =
+        bulkDeleteTarget.questions
+
+      if (
+        !targetQuestions.length
+      ) {
+        return
+      }
+
+      const questionIds =
+        targetQuestions.map(
+          (question) => question.id,
+        )
+
+      const deletedQuestionIds =
+        new Set(questionIds)
+
+      try {
+        setDeleting(true)
+
+        await deleteQuestionsInBatches(
+          questionIds,
+        )
+
+        setQuestions(
+          (currentQuestions) =>
+            currentQuestions.filter(
+              (question) =>
+                !deletedQuestionIds.has(
+                  question.id,
+                ),
+            ),
+        )
+
+        const deletedCount =
+          questionIds.length
+
+        const deleteType =
+          bulkDeleteTarget.type
+
+        const deletedCategory =
+          bulkDeleteTarget.category
+
+        setBulkDeleteTarget(null)
+        setBulkConfirmation('')
+        setCurrentPage(1)
+
+        if (
+          deleteType === 'all'
+        ) {
+          setSearchTerm('')
+          setCategoryFilter('all')
+          setStatusFilter('all')
+        }
+
+        if (
+          deleteType === 'category'
+        ) {
+          setCategoryFilter('all')
+        }
+
+        showNotification(
+          'success',
+          deleteType === 'category'
+            ? `${deletedCategory} kategorisindeki ${deletedCount} soru kalıcı olarak silindi.`
+            : `${deletedCount} sorunun tamamı kalıcı olarak silindi.`,
+        )
+      } catch (error) {
+        console.error(
+          'Toplu soru silme hatası:',
+          error,
+        )
+
+        await loadQuestions({
+          silent: true,
+        })
+
+        showNotification(
+          'error',
+          'Soruların tamamı silinemedi. Lütfen tekrar deneyin.',
+        )
+      } finally {
+        setDeleting(false)
+      }
+    }
+
   const handleExcelUpload =
     async (event) => {
       const file =
@@ -1098,6 +1343,17 @@ function QuestionManagementPage() {
     categoryFilter !== 'all' ||
     statusFilter !== 'all'
 
+  const bulkConfirmationMatches =
+    bulkDeleteTarget
+      ? normalizeText(
+          bulkConfirmation,
+        ) ===
+        normalizeText(
+          bulkDeleteTarget
+            .confirmationText,
+        )
+      : false
+
   return (
     <>
       <main className="question-management-page">
@@ -1150,6 +1406,7 @@ function QuestionManagementPage() {
                 }
               >
                 <FiUploadCloud />
+
                 {uploading
                   ? 'Yükleniyor'
                   : 'Excel Yükle'}
@@ -1172,6 +1429,7 @@ function QuestionManagementPage() {
                       : ''
                   }
                 />
+
                 Yenile
               </button>
 
@@ -1198,6 +1456,7 @@ function QuestionManagementPage() {
                 <small>
                   Toplam Soru
                 </small>
+
                 <strong>
                   {statistics.total}
                 </strong>
@@ -1213,6 +1472,7 @@ function QuestionManagementPage() {
                 <small>
                   Aktif Soru
                 </small>
+
                 <strong>
                   {statistics.active}
                 </strong>
@@ -1228,6 +1488,7 @@ function QuestionManagementPage() {
                 <small>
                   Pasif Soru
                 </small>
+
                 <strong>
                   {statistics.passive}
                 </strong>
@@ -1241,6 +1502,7 @@ function QuestionManagementPage() {
 
               <div>
                 <small>Kategori</small>
+
                 <strong>
                   {statistics.categories}
                 </strong>
@@ -1318,9 +1580,11 @@ function QuestionManagementPage() {
                 <option value="all">
                   Tüm durumlar
                 </option>
+
                 <option value="active">
                   Aktif
                 </option>
+
                 <option value="passive">
                   Pasif
                 </option>
@@ -1351,11 +1615,51 @@ function QuestionManagementPage() {
                   soru görüntüleniyor
                 </p>
               </div>
+
+              <div className="question-header-actions">
+                {categoryFilter !==
+                  'all' && (
+                  <button
+                    type="button"
+                    className="question-refresh-button"
+                    disabled={
+                      deleting ||
+                      categoryQuestions.length ===
+                        0
+                    }
+                    onClick={
+                      openCategoryDeleteModal
+                    }
+                  >
+                    <FiTrash2 />
+
+                    {categoryFilter}{' '}
+                    Sorularını Sil
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="question-add-button"
+                  disabled={
+                    deleting ||
+                    questions.length ===
+                      0
+                  }
+                  onClick={
+                    openAllDeleteModal
+                  }
+                >
+                  <FiTrash2 />
+                  Tüm Soruları Sil
+                </button>
+              </div>
             </div>
 
             {loading ? (
               <div className="question-loading-state">
                 <span className="question-loader" />
+
                 <strong>
                   Sorular yükleniyor
                 </strong>
@@ -1507,6 +1811,7 @@ function QuestionManagementPage() {
                                   <button
                                     type="button"
                                     className="edit"
+                                    aria-label="Soruyu düzenle"
                                     onClick={() =>
                                       openEditForm(
                                         question,
@@ -1519,6 +1824,7 @@ function QuestionManagementPage() {
                                   <button
                                     type="button"
                                     className="delete"
+                                    aria-label="Soruyu sil"
                                     onClick={() =>
                                       setDeleteTarget(
                                         question,
@@ -1825,6 +2131,7 @@ function QuestionManagementPage() {
             <div>
               <button
                 type="button"
+                disabled={deleting}
                 onClick={() =>
                   setDeleteTarget(null)
                 }
@@ -1842,6 +2149,89 @@ function QuestionManagementPage() {
                 {deleting
                   ? 'Siliniyor'
                   : 'Sil'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteTarget && (
+        <div className="question-modal-backdrop">
+          <div className="question-delete-modal">
+            <FiTrash2 />
+
+            <h2>
+              {bulkDeleteTarget.type ===
+              'category'
+                ? 'Kategorideki Soruları Sil'
+                : 'Tüm Soruları Sil'}
+            </h2>
+
+            <p>
+              {bulkDeleteTarget.type ===
+              'category'
+                ? `${bulkDeleteTarget.category} kategorisindeki ${bulkDeleteTarget.questions.length} soru kalıcı olarak silinecek.`
+                : `Soru bankasındaki ${bulkDeleteTarget.questions.length} sorunun tamamı kalıcı olarak silinecek.`}
+            </p>
+
+            <p>
+              Bu işlem geri alınamaz.
+            </p>
+
+            <label>
+              <span>
+                Devam etmek için{' '}
+                <strong>
+                  {
+                    bulkDeleteTarget.confirmationText
+                  }
+                </strong>{' '}
+                yazın.
+              </span>
+
+              <input
+                type="text"
+                value={
+                  bulkConfirmation
+                }
+                autoFocus
+                autoComplete="off"
+                disabled={deleting}
+                onChange={(event) =>
+                  setBulkConfirmation(
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+
+            <div>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={
+                  closeBulkDeleteModal
+                }
+              >
+                Vazgeç
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  deleting ||
+                  !bulkConfirmationMatches
+                }
+                onClick={
+                  handleBulkDeleteQuestions
+                }
+              >
+                {deleting
+                  ? 'Siliniyor'
+                  : bulkDeleteTarget.type ===
+                      'category'
+                    ? 'Kategoriyi Sil'
+                    : 'Tümünü Sil'}
               </button>
             </div>
           </div>
